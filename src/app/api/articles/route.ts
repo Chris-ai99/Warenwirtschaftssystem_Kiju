@@ -1,0 +1,131 @@
+import { MovementType, RoleCode, StockKind } from "@/generated/prisma/client";
+import { requirePermission, requireUser, verifyCsrf } from "@/lib/auth";
+import { normalizeBarcode } from "@/lib/barcode";
+import { AppError } from "@/lib/errors";
+import { prisma } from "@/lib/prisma";
+import { ok, parseJson, route } from "@/lib/route";
+import { articleCreateSchema } from "@/lib/validation";
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export function GET(request: Request) {
+  return route(async () => {
+    const user = await requireUser();
+    requirePermission(user, "article:read");
+
+    const url = new URL(request.url);
+    const search = url.searchParams.get("search")?.trim();
+    const barcode = url.searchParams.get("barcode")?.trim();
+    const categoryId = url.searchParams.get("categoryId") ?? undefined;
+    const activeParam = url.searchParams.get("active");
+    const active = activeParam === null ? undefined : activeParam === "true";
+
+    if (barcode) {
+      const value = normalizeBarcode(barcode);
+      const match = await prisma.barcode.findUnique({
+        where: { value },
+        include: { article: { include: { category: true, barcodes: true, stocks: true } } },
+      });
+      return ok({ articles: match ? [match.article] : [] });
+    }
+
+    const articles = await prisma.article.findMany({
+      where: {
+        active,
+        categoryId,
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" } },
+                { articleNumber: { contains: search, mode: "insensitive" } },
+                { barcodes: { some: { value: { contains: normalizeBarcode(search) } } } },
+              ],
+            }
+          : {}),
+      },
+      include: {
+        category: true,
+        barcodes: true,
+        stocks: { include: { warehouse: true } },
+      },
+      orderBy: { name: "asc" },
+      take: 100,
+    });
+
+    return ok({ articles });
+  });
+}
+
+export function POST(request: Request) {
+  return route(async () => {
+    const user = await requireUser();
+    await verifyCsrf(request);
+    requirePermission(user, "article:write");
+
+    const input = await parseJson(request, articleCreateSchema);
+    const barcodeValue = input.barcode ? normalizeBarcode(input.barcode) : undefined;
+
+    if (barcodeValue) {
+      const duplicate = await prisma.barcode.findUnique({ where: { value: barcodeValue } });
+      if (duplicate) {
+        throw new AppError(409, "DUPLICATE_BARCODE", "Barcode ist bereits vergeben.");
+      }
+    }
+
+    const article = await prisma.$transaction(async (tx) => {
+      let categoryId = input.categoryId ?? null;
+      if (!categoryId && input.categoryName) {
+        const category = await tx.category.upsert({
+          where: { slug: slugify(input.categoryName) },
+          update: { name: input.categoryName, active: true },
+          create: { name: input.categoryName, slug: slugify(input.categoryName) },
+        });
+        categoryId = category.id;
+      }
+
+      const created = await tx.article.create({
+        data: {
+          articleNumber: input.articleNumber,
+          name: input.name,
+          categoryId,
+          purchasePrice: user.role === RoleCode.ADMIN ? input.purchasePrice : "0",
+          salePrice: user.role === RoleCode.ADMIN ? input.salePrice : "0",
+          depositAmount: user.role === RoleCode.ADMIN ? input.depositAmount : "0",
+          unit: input.unit,
+          description: input.description,
+          imageUrl: input.imageUrl || null,
+          active: input.active,
+          supportsEmpties: input.supportsEmpties,
+          lowStockThreshold: input.lowStockThreshold,
+          barcodes: barcodeValue
+            ? { create: { value: barcodeValue, primary: true } }
+            : undefined,
+        },
+        include: { category: true, barcodes: true, stocks: true },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          type: MovementType.ARTICLE_CREATED,
+          stockKind: StockKind.FULL,
+          articleId: created.id,
+          barcodeValue,
+          quantity: 0,
+          userId: user.id,
+          note: "Artikel angelegt",
+        },
+      });
+
+      return created;
+    });
+
+    return ok({ article }, { status: 201 });
+  });
+}

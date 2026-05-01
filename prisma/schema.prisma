@@ -1,0 +1,220 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum RoleCode {
+  ADMIN
+  MITARBEITER
+}
+
+enum WarehouseType {
+  MAIN
+  SALES
+  VEHICLE
+  EXTERNAL
+  EMPTIES
+}
+
+enum MovementType {
+  ARTICLE_CREATED
+  STOCK_IN
+  STOCK_OUT
+  TRANSFER
+  EMPTY_IN
+  EMPTY_OUT
+  CORRECTION
+}
+
+enum StockKind {
+  FULL
+  EMPTY
+}
+
+enum MovementReason {
+  VERKAUF
+  BRUCH
+  VERLUST
+  KORREKTUR
+  EIGENVERBRAUCH
+  RUECKNAHME_LEERGUT
+  SONSTIGES
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  code        RoleCode @unique
+  name        String
+  permissions Json?
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id              String          @id @default(uuid())
+  email           String          @unique
+  name            String
+  passwordHash    String
+  active          Boolean         @default(true)
+  roleId          String
+  role            Role            @relation(fields: [roleId], references: [id])
+  sessions        Session[]
+  movements       StockMovement[]
+  settingsUpdated Settings[]      @relation("SettingsUpdatedBy")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@index([roleId])
+  @@index([active])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Category {
+  id        String     @id @default(uuid())
+  name      String
+  slug      String     @unique
+  active    Boolean    @default(true)
+  parentId  String?
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryTree")
+  articles  Article[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([active])
+  @@index([parentId])
+}
+
+model Article {
+  id               String          @id @default(uuid())
+  articleNumber    String          @unique
+  name             String
+  categoryId       String?
+  category         Category?       @relation(fields: [categoryId], references: [id])
+  purchasePrice    Decimal         @default(0) @db.Decimal(12, 2)
+  salePrice        Decimal         @default(0) @db.Decimal(12, 2)
+  depositAmount    Decimal         @default(0) @db.Decimal(12, 2)
+  unit             String          @default("Stück")
+  description      String?
+  imageUrl         String?
+  active           Boolean         @default(true)
+  supportsEmpties  Boolean         @default(false)
+  lowStockThreshold Int            @default(0)
+  barcodes         Barcode[]
+  stocks           Stock[]
+  movements        StockMovement[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([name])
+  @@index([categoryId])
+  @@index([active])
+}
+
+model Barcode {
+  id        String   @id @default(uuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  value     String   @unique
+  type      String   @default("EAN")
+  primary   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([articleId])
+}
+
+model Warehouse {
+  id             String          @id @default(uuid())
+  name           String
+  code           String          @unique
+  type           WarehouseType   @default(MAIN)
+  active         Boolean         @default(true)
+  stocks         Stock[]
+  movementsFrom  StockMovement[] @relation("MovementFromWarehouse")
+  movementsTo    StockMovement[] @relation("MovementToWarehouse")
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([active])
+  @@index([type])
+}
+
+model Stock {
+  id          String    @id @default(uuid())
+  articleId   String
+  article     Article   @relation(fields: [articleId], references: [id])
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  fullQuantity Int      @default(0)
+  emptyQuantity Int     @default(0)
+  reservedQuantity Int  @default(0)
+  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime  @default(now())
+
+  @@unique([articleId, warehouseId])
+  @@index([articleId])
+  @@index([warehouseId])
+}
+
+model StockMovement {
+  id                String          @id @default(uuid())
+  type              MovementType
+  stockKind         StockKind
+  articleId         String
+  article           Article         @relation(fields: [articleId], references: [id])
+  barcodeValue      String?
+  quantity          Int
+  fromWarehouseId   String?
+  fromWarehouse     Warehouse?      @relation("MovementFromWarehouse", fields: [fromWarehouseId], references: [id])
+  toWarehouseId     String?
+  toWarehouse       Warehouse?      @relation("MovementToWarehouse", fields: [toWarehouseId], references: [id])
+  reason            MovementReason?
+  note              String?
+  unitCost          Decimal?        @db.Decimal(12, 2)
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  idempotencyKey    String?         @unique
+  sourceFullBefore  Int?
+  sourceFullAfter   Int?
+  sourceEmptyBefore Int?
+  sourceEmptyAfter  Int?
+  targetFullBefore  Int?
+  targetFullAfter   Int?
+  targetEmptyBefore Int?
+  targetEmptyAfter  Int?
+  createdAt         DateTime        @default(now())
+
+  @@index([createdAt])
+  @@index([articleId])
+  @@index([userId])
+  @@index([type])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model Settings {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  updatedById String?
+  updatedBy   User?   @relation("SettingsUpdatedBy", fields: [updatedById], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kiju}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kiju_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-kiju_lager}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build:
+      context: .
+      target: builder
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kiju}:${POSTGRES_PASSWORD:-kiju_dev_password}@postgres:5432/${POSTGRES_DB:-kiju_lager}?schema=public
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@kiju.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-Admin123!}
+      ADMIN_NAME: ${ADMIN_NAME:-KiJu Admin}
+      ALLOW_NEGATIVE_STOCK: ${ALLOW_NEGATIVE_STOCK:-false}
+      LOW_STOCK_THRESHOLD_DEFAULT: ${LOW_STOCK_THRESHOLD_DEFAULT:-5}
+    command: sh -c "npx prisma migrate deploy && npx prisma db seed"
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kiju}:${POSTGRES_PASSWORD:-kiju_dev_password}@postgres:5432/${POSTGRES_DB:-kiju_lager}?schema=public
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://localhost}
+      AUTH_SECRET: ${AUTH_SECRET:-change-me-in-production}
+    expose:
+      - "3000"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
