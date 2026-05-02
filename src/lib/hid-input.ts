@@ -27,6 +27,10 @@ export function classifyHidInput(
   const averageGap = timings.length > 1 ? duration / (timings.length - 1) : Number.POSITIVE_INFINITY;
   const looksFast = averageGap <= fastAverageMs || duration <= fastTotalMs;
 
+  if (terminated && looksFast && normalized.length >= 3) {
+    return { kind: "scan", value: normalized };
+  }
+
   if (normalized.length >= minScanLength && (terminated || looksFast)) {
     return { kind: "scan", value: normalized };
   }

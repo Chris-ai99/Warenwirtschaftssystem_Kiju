@@ -109,6 +109,7 @@ export function StockInBatchFlow() {
   const [busy, setBusy] = useState(false);
   const [online, setOnline] = useState(true);
   const quantityRefs = useRef(new Map<string, HTMLInputElement>());
+  const scanQueue = useRef(Promise.resolve());
 
   useEffect(() => {
     setOnline(navigator.onLine);
@@ -199,27 +200,33 @@ export function StockInBatchFlow() {
     [addKnownRow],
   );
 
+  const enqueueScan = useCallback(
+    (barcode: string) => {
+      scanQueue.current = scanQueue.current.then(() => scan(barcode));
+    },
+    [scan],
+  );
+
   useEffect(() => {
     const initialBarcode = searchParams.get("barcode");
     if (initialBarcode) {
-      scan(initialBarcode);
+      enqueueScan(initialBarcode);
       router.replace("/scan/einbuchen");
       return;
     }
     const resolvedBarcode = searchParams.get("resolvedBarcode");
     if (!resolvedBarcode) return;
-    scan(resolvedBarcode);
+    enqueueScan(resolvedBarcode);
     router.replace("/scan/einbuchen");
-  }, [router, scan, searchParams]);
+  }, [enqueueScan, router, searchParams]);
 
   useScannerCapture({
-    busy,
-    onScan: scan,
+    onScan: enqueueScan,
     onQuantity: (quantity) => {
       if (!activeKey) return;
       setRows((current) =>
         current.map((row) =>
-          row.key === activeKey && row.status === "known" ? { ...row, unitCount: Math.max(1, quantity) } : row,
+          row.key === activeKey && row.status === "known" ? { ...row, unitCount: clampPositiveInteger(quantity) } : row,
         ),
       );
     },

@@ -45,6 +45,16 @@ function isBeverageCategory(category?: CategoryDto | null, categoryName = "") {
   return value.includes("getraenke") || value.includes("getränke");
 }
 
+function optionalText(value: string) {
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function moneyOrZero(value: string) {
+  const trimmed = value.trim();
+  return trimmed || "0";
+}
+
 export function ArticleForm({ articleId }: ArticleFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -163,8 +173,20 @@ export function ArticleForm({ articleId }: ArticleFormProps) {
       const payload = {
         ...form,
         categoryId: form.categoryId || undefined,
-        categoryName: form.categoryName || undefined,
-        units: form.units.map((unit, index) => ({ ...unit, sortOrder: index })),
+        categoryName: optionalText(form.categoryName),
+        barcode: optionalText(form.barcode),
+        purchasePrice: moneyOrZero(form.purchasePrice),
+        salePrice: moneyOrZero(form.salePrice),
+        depositAmount: moneyOrZero(form.depositAmount),
+        description: optionalText(form.description),
+        imageUrl: optionalText(form.imageUrl),
+        units: form.units.map((unit, index) => ({
+          ...unit,
+          label: unit.label.trim(),
+          barcode: optionalText(unit.barcode),
+          quantity: Math.max(1, Math.trunc(Number(unit.quantity) || 1)),
+          sortOrder: index,
+        })),
       };
       const response = await apiFetch<{ article: { id: string } }>(
         articleId ? `/api/articles/${articleId}` : "/api/articles",

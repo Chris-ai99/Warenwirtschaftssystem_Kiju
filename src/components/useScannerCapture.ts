@@ -32,7 +32,7 @@ export function useScannerCapture({ busy, onScan, onQuantity, onQuantityConfirm 
       const normalized = normalizeBarcode(value);
       if (normalized.length < 3) return;
       const previous = lastScan.current;
-      if (previous?.code === normalized && Date.now() - previous.at < 250) return;
+      if (previous?.code === normalized && Date.now() - previous.at < 80) return;
       lastScan.current = { code: normalized, at: Date.now() };
       onScan(normalized);
     },
@@ -100,10 +100,10 @@ export function useScannerCapture({ busy, onScan, onQuantity, onQuantityConfirm 
       if (barcode) commitScan(barcode);
     }
 
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("kiju-native-scan", onNativeScan);
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("kiju-native-scan", onNativeScan);
       clearBuffer();
     };

@@ -26,4 +26,14 @@ describe("HID scanner classifier", () => {
     const decision = classifyHidInput("ABC", [0, 160, 320], true);
     expect(decision).toEqual({ kind: "scan", value: "ABC" });
   });
+
+  it("treats a short fast numeric scanner code as a scan, not a quantity", () => {
+    const decision = classifyHidInput("1234", [0, 8, 16, 24], true);
+    expect(decision).toEqual({ kind: "scan", value: "1234" });
+  });
+
+  it("keeps a slow short numeric input as a quantity", () => {
+    const decision = classifyHidInput("1234", [0, 350, 700, 1050], true);
+    expect(decision).toEqual({ kind: "quantity", value: "1234" });
+  });
 });

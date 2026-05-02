@@ -12,6 +12,16 @@ export const barcodeSchema = z
   .transform(normalizeBarcode)
   .pipe(z.string().min(3).max(64));
 
+const optionalBarcodeSchema = z
+  .union([barcodeSchema, z.literal("")])
+  .optional()
+  .transform((value) => (value === "" ? undefined : value));
+
+const moneyString = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? "0" : value),
+  decimalString,
+);
+
 const articleUnitInputSchema = z.object({
   id: z.string().uuid().optional(),
   label: z.string().trim().min(1).max(80),
@@ -19,18 +29,18 @@ const articleUnitInputSchema = z.object({
   sortOrder: z.coerce.number().int().min(0).default(0),
   isDefault: z.boolean().default(false),
   active: z.boolean().default(true),
-  barcode: barcodeSchema.optional().or(z.literal("")),
+  barcode: optionalBarcodeSchema,
 });
 
 export const articleCreateSchema = z.object({
-  barcode: barcodeSchema.optional(),
+  barcode: optionalBarcodeSchema,
   articleNumber: z.string().trim().min(1).max(80),
   name: z.string().trim().min(1).max(180),
   categoryId: z.string().uuid().nullable().optional(),
   categoryName: z.string().trim().max(120).optional(),
-  purchasePrice: decimalString.default("0"),
-  salePrice: decimalString.default("0"),
-  depositAmount: decimalString.default("0"),
+  purchasePrice: moneyString.default("0"),
+  salePrice: moneyString.default("0"),
+  depositAmount: moneyString.default("0"),
   unit: z.string().trim().min(1).max(40).default("Stück"),
   description: z.string().trim().max(2000).optional(),
   imageUrl: z.string().url().optional().or(z.literal("")),
@@ -41,7 +51,7 @@ export const articleCreateSchema = z.object({
 });
 
 export const articleUpdateSchema = articleCreateSchema.partial().extend({
-  barcode: barcodeSchema.optional(),
+  barcode: optionalBarcodeSchema,
 });
 
 export const warehouseCreateSchema = z.object({

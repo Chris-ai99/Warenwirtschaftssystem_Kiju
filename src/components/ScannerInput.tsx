@@ -51,13 +51,12 @@ export function ScannerInput({
         </span>
         <div className="inline-field">
           <input
-            data-scan-field="true"
             value={manual}
             inputMode="numeric"
             autoComplete="off"
             onChange={(event) => setManual(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
+              if (event.key === "Enter" || event.key === "Tab") {
                 event.preventDefault();
                 commit(manual);
               }
