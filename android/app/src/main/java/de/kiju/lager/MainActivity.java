@@ -2,13 +2,19 @@ package de.kiju.lager;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.graphics.Color;
 import android.net.Uri;
 import android.net.http.SslError;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
+import android.util.Log;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
@@ -25,6 +31,8 @@ import android.webkit.WebViewClient;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
+    private static final String TAG = "KiJuScanner";
+    private static final String ACTION_DECODE_DATA = "android.intent.ACTION_DECODE_DATA";
     public static final String EXTRA_BARCODE = "de.kiju.lager.EXTRA_BARCODE";
     private static final String[] BARCODE_EXTRAS = {
         EXTRA_BARCODE,
@@ -39,6 +47,11 @@ public class MainActivity extends Activity {
     private WebView webView;
     private String pendingBarcode;
     private boolean pageReady;
+    private final StringBuilder hidBuffer = new StringBuilder();
+    private long hidFirstAt;
+    private long hidLastAt;
+    private int hidChars;
+    private BroadcastReceiver foregroundScanReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,6 +59,7 @@ public class MainActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         enableFullscreen();
         setupWebView();
+        registerForegroundScanReceiver();
         handleIncomingIntent(getIntent());
     }
 
@@ -54,6 +68,15 @@ public class MainActivity extends Activity {
         super.onNewIntent(intent);
         setIntent(intent);
         handleIncomingIntent(intent);
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (foregroundScanReceiver != null) {
+            unregisterReceiver(foregroundScanReceiver);
+            foregroundScanReceiver = null;
+        }
+        super.onDestroy();
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -83,7 +106,21 @@ public class MainActivity extends Activity {
         webView.setWebChromeClient(new WebChromeClient());
         webView.setWebViewClient(new KiJuWebViewClient());
         setContentView(webView);
+        webView.setFocusable(true);
+        webView.setFocusableInTouchMode(true);
+        webView.requestFocus();
         webView.loadUrl(getString(R.string.kiju_server_url));
+    }
+
+    private void registerForegroundScanReceiver() {
+        foregroundScanReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                Log.i(TAG, "Foreground scan intent received: " + intent.getAction());
+                handleIncomingIntent(intent);
+            }
+        };
+        registerReceiver(foregroundScanReceiver, new IntentFilter(ACTION_DECODE_DATA));
     }
 
     public static String extractBarcodeFromIntent(Intent intent) {
@@ -109,7 +146,11 @@ public class MainActivity extends Activity {
 
     private void handleIncomingIntent(Intent intent) {
         String barcode = extractBarcodeFromIntent(intent);
-        if (barcode == null || barcode.isEmpty()) return;
+        if (barcode == null || barcode.isEmpty()) {
+            Log.i(TAG, "Scan intent without barcode data: " + (intent == null ? "null" : intent.getAction()));
+            return;
+        }
+        Log.i(TAG, "Native scan received: " + barcode);
         pendingBarcode = barcode;
         dispatchPendingScan();
     }
@@ -118,6 +159,7 @@ public class MainActivity extends Activity {
         if (webView == null || !pageReady || pendingBarcode == null) return;
 
         String barcodeJson = JSONObject.quote(pendingBarcode);
+        Log.i(TAG, "Dispatching scan to WebView: " + pendingBarcode);
         pendingBarcode = null;
         webView.evaluateJavascript(
             "(function(barcode){" +
@@ -129,6 +171,62 @@ public class MainActivity extends Activity {
             "})(" + barcodeJson + ");",
             null
         );
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (event.getKeyCode() == KeyEvent.KEYCODE_ENTER || event.getKeyCode() == KeyEvent.KEYCODE_TAB) {
+                if (commitHidBufferIfScan()) {
+                    return true;
+                }
+                resetHidBuffer();
+                return super.dispatchKeyEvent(event);
+            }
+
+            int unicode = event.getUnicodeChar();
+            if (unicode > 0 && !Character.isISOControl(unicode)) {
+                appendHidChar((char) unicode);
+            }
+        }
+
+        return super.dispatchKeyEvent(event);
+    }
+
+    private void appendHidChar(char value) {
+        long now = SystemClock.uptimeMillis();
+        if (hidChars == 0 || now - hidLastAt > 700) {
+            hidBuffer.setLength(0);
+            hidFirstAt = now;
+            hidChars = 0;
+        }
+        hidBuffer.append(value);
+        hidLastAt = now;
+        hidChars += 1;
+    }
+
+    private boolean commitHidBufferIfScan() {
+        String value = hidBuffer.toString().trim();
+        if (value.length() < 3) return false;
+
+        long duration = Math.max(0, hidLastAt - hidFirstAt);
+        long averageGap = hidChars > 1 ? duration / (hidChars - 1) : Long.MAX_VALUE;
+        boolean looksLikeScanner = averageGap <= 80 || duration <= 600 || value.length() >= 6;
+
+        if (!looksLikeScanner) return false;
+
+        Log.i(TAG, "HID scan detected: " + value);
+        pendingBarcode = value;
+        resetHidBuffer();
+        dispatchPendingScan();
+        return true;
+    }
+
+    private void resetHidBuffer() {
+        hidBuffer.setLength(0);
+        hidFirstAt = 0;
+        hidLastAt = 0;
+        hidChars = 0;
     }
 
     private void enableFullscreen() {

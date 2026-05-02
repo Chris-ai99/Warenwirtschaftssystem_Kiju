@@ -3,12 +3,19 @@ package de.kiju.lager;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.util.Log;
 
 public class ScanBroadcastReceiver extends BroadcastReceiver {
+    private static final String TAG = "KiJuScanner";
+
     @Override
     public void onReceive(Context context, Intent intent) {
         String barcode = MainActivity.extractBarcodeFromIntent(intent);
-        if (barcode == null || barcode.isEmpty()) return;
+        if (barcode == null || barcode.isEmpty()) {
+            Log.i(TAG, "Background scan intent without barcode data: " + intent.getAction());
+            return;
+        }
+        Log.i(TAG, "Background scan intent received: " + barcode);
 
         Intent launchIntent = new Intent(context, MainActivity.class);
         launchIntent.addFlags(
