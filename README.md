@@ -120,6 +120,48 @@ Mitarbeiter:
 
 Die App puffert schnelle Tastatureingaben, erkennt `Enter`/`Tab` als Scan-Ende und sucht den Artikel automatisch. Wenn ein Barcode unbekannt ist, bietet die Admin-Oberfläche direkt das Anlegen des Artikels an.
 
+## Urovo DT40 / native APK
+
+Für den Urovo DT40 ist zusätzlich eine native Vollbild-APK im Ordner `android` enthalten. Die APK enthält keinen lokalen Server; sie lädt die zentrale KiJu-Lager-URL in einer Android-WebView. Dadurch bleiben Lagerbestand, Artikel und Buchungsverlauf online synchron.
+
+APK bauen:
+
+```powershell
+cd android
+gradle :app:assembleDebug
+```
+
+Installation per USB:
+
+```powershell
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Die Server-Adresse steht in `android/app/src/main/res/values/strings.xml`. Für Produktion sollte dort eine HTTPS-Adresse eingetragen werden.
+
+## Urovo ScanWedge Intent-Modus
+
+Die APK registriert einen BroadcastReceiver für den Urovo-Scan-Intent `android.intent.ACTION_DECODE_DATA` und liest u. a. das Extra `barcode_string`. Wenn der DT40 ScanWedge im Intent-Modus sendet, kann ein Scan die App `de.kiju.lager` öffnen oder in den Vordergrund holen. Referenz: [Urovo ScanManager Intent Mode](https://www.urovo.com/developer/android/device/ScanManager.html).
+
+Empfohlene DT40-Einstellung:
+
+1. ScanWedge / Scanner Settings öffnen.
+2. Output Mode auf `Intent` stellen.
+3. Intent Action: `android.intent.ACTION_DECODE_DATA`.
+4. Barcode Extra: `barcode_string`.
+5. KiJu Lager APK starten und einloggen.
+6. Optional Android-Kiosk, MDM oder Bildschirmfixierung aktivieren.
+
+Wichtig: Reines HID/Keyboard-Wedge kann eine geschlossene App nicht zuverlässig automatisch öffnen, weil Android die Tastatureingabe an die aktuell fokussierte App sendet. Für Auto-Open ist Intent-Modus oder eine Kiosk-/Autostart-Konfiguration nötig. HID bleibt vollständig unterstützt, wenn KiJu Lager geöffnet und fokussiert ist.
+
+## Neuer Scan-Workflow
+
+- `/scan/suchen`: bekannter Barcode öffnet direkt die Artikeldetailseite; unbekannter Barcode öffnet für Admins direkt die Artikelanlage mit vorausgefülltem Barcode.
+- Artikeldetail: große Buttons für Einbuchen, Ausbuchen, Umbuchen, Bestand, Leergut und Bearbeiten.
+- `/scan/einbuchen`: Lager wählen, beliebig viele Artikel scannen, gleiche Artikel/Gebinde werden zusammengefasst und anschließend gemeinsam als Batch gebucht.
+- Getränkeartikel unterstützen Gebinde wie `1 Flasche`, `3 Stück`, `6 Stück`, `12 Stück` und `24 Stück / Kiste`; Gebinde können eigene Barcodes haben.
+- Hardware-Numpad: Nach einem Scan ist die Position aktiv. Zahlen setzen die Menge, `Enter` bestätigt. Schnelle Zeichenfolgen mit `Enter`/`Tab` bleiben Barcode-Scans.
+
 ## USB-Verbindung SQ45S
 
 Wenn der MUNBYN IPDA082P per USB mit Windows verbunden ist, erscheint er unter:

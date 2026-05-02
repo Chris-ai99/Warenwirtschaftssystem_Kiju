@@ -14,6 +14,8 @@ type Movement = {
   reason?: string;
   note?: string;
   barcodeValue?: string;
+  unitLabel?: string | null;
+  unitCount?: number | null;
   article: { name: string; articleNumber: string };
   user: { name: string };
   fromWarehouse?: { name: string } | null;
@@ -50,6 +52,7 @@ export function MovementHistory() {
               <strong>{movement.article.name}</strong>
               <span>
                 {movement.type} · {movement.quantity} · {movement.stockKind}
+                {movement.unitLabel ? ` · ${movement.unitCount ?? 1} × ${movement.unitLabel}` : ""}
               </span>
               <small>
                 {movement.fromWarehouse?.name ?? "−"} → {movement.toWarehouse?.name ?? "−"}

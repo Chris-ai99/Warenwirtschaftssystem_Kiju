@@ -162,6 +162,10 @@ button:disabled {
   border-color: var(--primary);
 }
 
+.icon-button.danger {
+  color: var(--danger);
+}
+
 .app-main {
   width: min(1120px, 100%);
   margin: 0 auto;
@@ -345,6 +349,12 @@ textarea:focus {
 
 .secondary-action:hover {
   border-color: var(--primary);
+}
+
+.secondary-action.compact {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.92rem;
 }
 
 .article-summary {
@@ -535,6 +545,192 @@ code {
   gap: 8px;
 }
 
+.scanner-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 10px;
+}
+
+.scan-action-card {
+  display: grid;
+  min-height: 96px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.scan-action-card.primary {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.unit-editor,
+.scan-batch-screen {
+  display: grid;
+  gap: 14px;
+}
+
+.section-heading-row,
+.batch-toolbar,
+.batch-row-main,
+.batch-quantity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.unit-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(120px, 0.8fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.unit-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batch-toolbar {
+  align-items: stretch;
+}
+
+.batch-toolbar .field {
+  flex: 1;
+}
+
+.scan-state-card,
+.last-scan-panel,
+.package-picker,
+.batch-row {
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.scan-state-card {
+  display: flex;
+  min-width: 210px;
+  align-items: center;
+  gap: 10px;
+}
+
+.scan-state-card div,
+.last-scan-panel,
+.package-picker > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.last-scan-panel span,
+.scan-state-card span,
+.package-picker span,
+.batch-row-main span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.last-scan-panel strong {
+  overflow-wrap: anywhere;
+  font-size: clamp(1.1rem, 4vw, 1.7rem);
+}
+
+.package-chip-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.package-chip {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.package-chip.active {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.package-prompt {
+  margin-top: 10px;
+}
+
+.batch-list {
+  display: grid;
+  gap: 10px;
+}
+
+.batch-row {
+  display: grid;
+  gap: 12px;
+}
+
+.batch-row.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.batch-row-status {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.batch-quantity-row {
+  justify-content: start;
+}
+
+.batch-quantity-input {
+  display: grid;
+  gap: 4px;
+  min-width: 92px;
+  font-weight: 800;
+}
+
+.batch-quantity-input span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.batch-quantity-input input {
+  width: 92px;
+  min-height: 46px;
+  text-align: center;
+}
+
+.batch-total {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+
+.batch-actions {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+}
+
 .admin-nav a {
   min-height: 44px;
   padding: 10px 12px;
@@ -596,8 +792,27 @@ code {
 
   .mode-grid,
   .form-grid,
-  .summary-grid {
+  .summary-grid,
+  .unit-row,
+  .batch-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .unit-row,
+  .batch-toolbar,
+  .batch-row-main,
+  .batch-quantity-row,
+  .section-heading-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .scan-state-card {
+    min-width: 0;
+  }
+
+  .batch-total {
+    margin-left: 0;
   }
 
   .stock-row,
@@ -612,7 +827,8 @@ code {
     text-align: left;
   }
 
-  .sticky-actions {
+  .sticky-actions,
+  .batch-actions {
     grid-template-columns: 1fr;
   }
 }

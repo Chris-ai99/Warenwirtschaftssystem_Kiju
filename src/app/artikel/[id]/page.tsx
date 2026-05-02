@@ -9,7 +9,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   return (
     <AppShell user={user}>
-      <ArticleDetail id={id} />
+      <ArticleDetail id={id} user={user} />
     </AppShell>
   );
 }

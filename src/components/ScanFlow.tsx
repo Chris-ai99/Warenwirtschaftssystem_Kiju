@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, RotateCcw, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArticleSummary } from "./ArticleSummary";
 import { ScannerInput } from "./ScannerInput";
+import { StockInBatchFlow } from "./StockInBatchFlow";
 import { apiFetch } from "@/lib/client-api";
 import { euro } from "@/lib/format";
 import type { CurrentUser } from "@/lib/auth";
@@ -43,6 +44,7 @@ const reasonOptions = [
 ];
 
 export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [barcode, setBarcode] = useState("");
   const [article, setArticle] = useState<Article | null>(null);
@@ -91,20 +93,28 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
       const response = await apiFetch<{ article: Article }>(
         `/api/articles/by-barcode/${encodeURIComponent(value)}`,
       );
+      if (mode === "suchen") {
+        router.push(`/artikel/${response.article.id}`);
+        return;
+      }
       setArticle(response.article);
     } catch (err) {
+      if (mode === "suchen" && user.role === "ADMIN") {
+        router.push(`/artikel/neu?barcode=${encodeURIComponent(value)}`);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Barcode wurde nicht gefunden.");
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [mode, router, user.role]);
 
   useEffect(() => {
     const initialBarcode = searchParams.get("barcode");
-    if (initialBarcode && !barcode && !article) {
+    if (mode !== "einbuchen" && initialBarcode && !barcode && !article) {
       scan(initialBarcode);
     }
-  }, [article, barcode, scan, searchParams]);
+  }, [article, barcode, mode, scan, searchParams]);
 
   const title = titles[mode] ?? "Artikel suchen";
   const isBookingMode = mode !== "suchen";
@@ -112,6 +122,14 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
     () => Number(article?.depositAmount ?? 0) * quantity,
     [article?.depositAmount, quantity],
   );
+
+  if (mode === "einbuchen") {
+    return <StockInBatchFlow />;
+  }
+
+  if (!["suchen", "ausbuchen", "umbuchen", "leergut"].includes(mode)) {
+    return <div className="status error">Unbekannter Scan-Modus.</div>;
+  }
 
   async function submitMovement(event: React.FormEvent) {
     event.preventDefault();

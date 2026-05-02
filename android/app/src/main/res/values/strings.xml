@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KiJu Lager</string>
+
+    <!-- Für Produktion auf die zentrale HTTPS-Adresse setzen, z. B. https://lager.example.de/ -->
+    <string name="kiju_server_url">http://192.168.178.98:3000/</string>
+</resources>

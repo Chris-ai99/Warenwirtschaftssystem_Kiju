@@ -82,7 +82,7 @@ async function main() {
 
   if (process.env.SEED_DEMO_DATA === "true") {
     const category = await prisma.category.findUniqueOrThrow({ where: { slug: "getraenke" } });
-    await prisma.article.upsert({
+    const demoArticle = await prisma.article.upsert({
       where: { articleNumber: "DEMO-COCA-1L" },
       update: {},
       create: {
@@ -97,6 +97,30 @@ async function main() {
         barcodes: { create: { value: "4000000000017", primary: true } },
       },
     });
+
+    const demoUnits = [
+      { label: "1 Flasche", quantity: 1, sortOrder: 0, isDefault: true },
+      { label: "3 Stück", quantity: 3, sortOrder: 1, isDefault: false },
+      { label: "6 Stück", quantity: 6, sortOrder: 2, isDefault: false },
+      { label: "12 Stück", quantity: 12, sortOrder: 3, isDefault: false },
+      { label: "24 Stück / Kiste", quantity: 24, sortOrder: 4, isDefault: false },
+    ];
+
+    for (const unit of demoUnits) {
+      const existingUnit = await prisma.articleUnit.findFirst({
+        where: { articleId: demoArticle.id, quantity: unit.quantity, label: unit.label },
+      });
+      if (existingUnit) {
+        await prisma.articleUnit.update({
+          where: { id: existingUnit.id },
+          data: { ...unit, active: true },
+        });
+      } else {
+        await prisma.articleUnit.create({
+          data: { ...unit, articleId: demoArticle.id, active: true },
+        });
+      }
+    }
   }
 }
 

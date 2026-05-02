@@ -25,6 +25,19 @@ type StockInInput = CommonBooking & {
   unitCost?: string;
 };
 
+type StockInBatchInput = {
+  warehouseId: string;
+  note?: string;
+  idempotencyKey?: string | null;
+  items: {
+    articleId: string;
+    articleUnitId?: string | null;
+    unitCount: number;
+    barcodeValue?: string;
+    note?: string;
+  }[];
+};
+
 type StockOutInput = CommonBooking & {
   warehouseId: string;
   reason?: MovementReason;
@@ -84,6 +97,14 @@ async function findIdempotentMovement(tx: Tx, idempotencyKey?: string | null) {
   return tx.stockMovement.findUnique({ where: { idempotencyKey } });
 }
 
+async function findIdempotentBatch(tx: Tx, idempotencyKey?: string | null) {
+  if (!idempotencyKey) return null;
+  return tx.stockMovementBatch.findUnique({
+    where: { idempotencyKey },
+    include: { movements: true },
+  });
+}
+
 function ensureCanGoNegative(user: CurrentUser, allowNegativeStock: boolean) {
   if (!allowNegativeStock || user.role !== RoleCode.ADMIN) {
     throw new AppError(409, "INSUFFICIENT_STOCK", "Bestand reicht nicht aus.");
@@ -125,6 +146,128 @@ export async function bookStockIn(input: StockInInput, user: CurrentUser) {
         targetEmptyAfter: current.emptyQuantity,
       },
     });
+  });
+}
+
+export async function bookStockInBatch(input: StockInBatchInput, user: CurrentUser) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await findIdempotentBatch(tx, input.idempotencyKey);
+    if (existing) return existing;
+
+    assertCondition(input.items.length > 0, 400, "BATCH_EMPTY", "Die Scanliste ist leer.");
+    await ensureWarehouse(tx, input.warehouseId);
+
+    const articleIds = [...new Set(input.items.map((item) => item.articleId))];
+    const articles = await tx.article.findMany({
+      where: { id: { in: articleIds } },
+      include: { units: true },
+    });
+    const articleById = new Map(articles.map((article) => [article.id, article]));
+
+    const resolvedItems = input.items.map((item) => {
+      assertCondition(item.unitCount > 0, 400, "INVALID_QUANTITY", "Menge muss größer als 0 sein.");
+      const article = articleById.get(item.articleId);
+      assertCondition(article, 404, "ARTICLE_NOT_FOUND", "Artikel wurde nicht gefunden.", {
+        articleId: item.articleId,
+      });
+      assertCondition(article.active, 409, "ARTICLE_INACTIVE", "Artikel ist deaktiviert.", {
+        articleId: item.articleId,
+      });
+
+      const unit = item.articleUnitId
+        ? article.units.find((candidate) => candidate.id === item.articleUnitId)
+        : null;
+      assertCondition(
+        !item.articleUnitId || unit,
+        404,
+        "ARTICLE_UNIT_NOT_FOUND",
+        "Gebindegröße wurde nicht gefunden.",
+        { articleUnitId: item.articleUnitId },
+      );
+      assertCondition(
+        !unit || unit.active,
+        409,
+        "ARTICLE_UNIT_INACTIVE",
+        "Gebindegröße ist deaktiviert.",
+        { articleUnitId: item.articleUnitId },
+      );
+
+      const unitQuantity = unit?.quantity ?? 1;
+      const quantity = item.unitCount * unitQuantity;
+
+      return {
+        articleId: article.id,
+        articleUnitId: unit?.id ?? null,
+        barcodeValue: item.barcodeValue,
+        note: item.note,
+        unitCount: item.unitCount,
+        unitLabel: unit?.label ?? article.unit,
+        unitQuantity,
+        quantity,
+      };
+    });
+
+    const stocks = await Promise.all(
+      articleIds.map((articleId) => upsertStock(tx, articleId, input.warehouseId)),
+    );
+    await lockStockRows(tx, stocks.map((stock) => stock.id));
+
+    const currentByArticleId = new Map(
+      await Promise.all(
+        stocks.map(async (stock) => [stock.articleId, await refetchStock(tx, stock.id)] as const),
+      ),
+    );
+
+    const batch = await tx.stockMovementBatch.create({
+      data: {
+        type: MovementType.STOCK_IN,
+        stockKind: StockKind.FULL,
+        warehouseId: input.warehouseId,
+        userId: user.id,
+        note: input.note,
+        idempotencyKey: input.idempotencyKey ?? null,
+        itemCount: resolvedItems.length,
+        totalQuantity: resolvedItems.reduce((sum, item) => sum + item.quantity, 0),
+      },
+    });
+
+    const movements = [];
+    for (const item of resolvedItems) {
+      const current = currentByArticleId.get(item.articleId);
+      assertCondition(current, 404, "STOCK_NOT_FOUND", "Bestand wurde nicht gefunden.");
+      const nextFull = current.fullQuantity + item.quantity;
+
+      await tx.stock.update({
+        where: { id: current.id },
+        data: { fullQuantity: nextFull },
+      });
+
+      const movement = await tx.stockMovement.create({
+        data: {
+          type: MovementType.STOCK_IN,
+          stockKind: StockKind.FULL,
+          articleId: item.articleId,
+          batchId: batch.id,
+          articleUnitId: item.articleUnitId,
+          barcodeValue: item.barcodeValue,
+          quantity: item.quantity,
+          unitLabel: item.unitLabel,
+          unitQuantity: item.unitQuantity,
+          unitCount: item.unitCount,
+          toWarehouseId: input.warehouseId,
+          note: item.note,
+          userId: user.id,
+          targetFullBefore: current.fullQuantity,
+          targetFullAfter: nextFull,
+          targetEmptyBefore: current.emptyQuantity,
+          targetEmptyAfter: current.emptyQuantity,
+        },
+      });
+      movements.push(movement);
+      currentByArticleId.set(item.articleId, { ...current, fullQuantity: nextFull });
+    }
+
+    return { ...batch, movements };
   });
 }
 

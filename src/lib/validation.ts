@@ -12,6 +12,16 @@ export const barcodeSchema = z
   .transform(normalizeBarcode)
   .pipe(z.string().min(3).max(64));
 
+const articleUnitInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().min(1).max(80),
+  quantity: z.coerce.number().int().positive().max(10000),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  isDefault: z.boolean().default(false),
+  active: z.boolean().default(true),
+  barcode: barcodeSchema.optional().or(z.literal("")),
+});
+
 export const articleCreateSchema = z.object({
   barcode: barcodeSchema.optional(),
   articleNumber: z.string().trim().min(1).max(80),
@@ -27,6 +37,7 @@ export const articleCreateSchema = z.object({
   active: z.boolean().default(true),
   supportsEmpties: z.boolean().default(false),
   lowStockThreshold: z.coerce.number().int().min(0).default(0),
+  units: z.array(articleUnitInputSchema).max(20).default([]),
 });
 
 export const articleUpdateSchema = articleCreateSchema.partial().extend({
@@ -63,6 +74,23 @@ export const stockInSchema = z.object({
   barcodeValue: barcodeSchema.optional(),
   unitCost: decimalString.optional(),
   note: z.string().trim().max(1000).optional(),
+});
+
+export const stockInBatchSchema = z.object({
+  warehouseId: z.string().uuid(),
+  note: z.string().trim().max(1000).optional(),
+  items: z
+    .array(
+      z.object({
+        articleId: z.string().uuid(),
+        articleUnitId: z.string().uuid().nullable().optional(),
+        unitCount: z.coerce.number().int().positive().max(100000),
+        barcodeValue: barcodeSchema.optional(),
+        note: z.string().trim().max(1000).optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
 });
 
 export const stockOutSchema = z.object({

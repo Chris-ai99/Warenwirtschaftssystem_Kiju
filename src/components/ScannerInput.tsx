@@ -1,70 +1,39 @@
 "use client";
 
 import { Keyboard, ScanLine, Search } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { normalizeBarcode } from "@/lib/barcode";
+import { useScannerCapture } from "./useScannerCapture";
 
 type Props = {
   onScan: (barcode: string) => void;
   busy?: boolean;
   initialValue?: string;
+  prompt?: string;
 };
 
-function isTextField(element: Element | null) {
-  if (!element) return false;
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    return element.dataset.scanField !== "true";
-  }
-  return element.getAttribute("contenteditable") === "true";
-}
-
-export function ScannerInput({ onScan, busy, initialValue = "" }: Props) {
+export function ScannerInput({
+  onScan,
+  busy,
+  initialValue = "",
+  prompt = "Hardware-Scanbutton drücken oder Code eingeben.",
+}: Props) {
   const [manual, setManual] = useState(initialValue);
-  const buffer = useRef("");
-  const timer = useRef<number | null>(null);
-  const lastScan = useRef<{ code: string; at: number } | null>(null);
 
-  const commit = useCallback((value: string) => {
-    const normalized = normalizeBarcode(value);
-    if (normalized.length < 3) return;
-    const previous = lastScan.current;
-    if (previous?.code === normalized && Date.now() - previous.at < 600) return;
-    lastScan.current = { code: normalized, at: Date.now() };
-    setManual(normalized);
-    onScan(normalized);
-  }, [onScan]);
+  const commit = useCallback(
+    (value: string) => {
+      const normalized = normalizeBarcode(value);
+      if (normalized.length < 3) return;
+      setManual(normalized);
+      onScan(normalized);
+    },
+    [onScan],
+  );
 
-  useEffect(() => {
-    function resetTimer() {
-      if (timer.current) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => {
-        if (buffer.current.length >= 6) commit(buffer.current);
-        buffer.current = "";
-      }, 90);
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (busy || isTextField(document.activeElement)) return;
-      if (event.key === "Enter" || event.key === "Tab") {
-        if (buffer.current) {
-          event.preventDefault();
-          commit(buffer.current);
-          buffer.current = "";
-        }
-        return;
-      }
-      if (event.key.length === 1) {
-        buffer.current += event.key;
-        resetTimer();
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      if (timer.current) window.clearTimeout(timer.current);
-    };
-  }, [busy, commit]);
+  useScannerCapture({
+    busy,
+    onScan: commit,
+  });
 
   return (
     <div className="scanner-panel">
@@ -72,7 +41,7 @@ export function ScannerInput({ onScan, busy, initialValue = "" }: Props) {
         <ScanLine size={34} aria-hidden />
         <div>
           <strong>Barcode scannen</strong>
-          <span>Hardware-Scanbutton drücken oder Code eingeben.</span>
+          <span>{prompt}</span>
         </div>
       </div>
       <label className="field">
@@ -95,7 +64,7 @@ export function ScannerInput({ onScan, busy, initialValue = "" }: Props) {
             }}
             placeholder="z. B. 4000000000017"
           />
-          <button className="icon-button filled" onClick={() => commit(manual)} disabled={busy}>
+          <button className="icon-button filled" type="button" onClick={() => commit(manual)} disabled={busy}>
             <Search size={20} aria-hidden />
           </button>
         </div>
