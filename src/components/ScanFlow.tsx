@@ -6,9 +6,11 @@ import { CheckCircle2, RotateCcw, Save } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArticleSummary } from "./ArticleSummary";
 import { ScannerInput } from "./ScannerInput";
+import { StockInBatchFlow } from "./StockInBatchFlow";
 import { apiFetch } from "@/lib/client-api";
 import { euro } from "@/lib/format";
 import type { CurrentUser } from "@/lib/auth";
+import { hasPermission } from "@/lib/permissions";
 
 type Warehouse = { id: string; name: string; active: boolean };
 type Article = {
@@ -42,6 +44,13 @@ const reasonOptions = [
   ["SONSTIGES", "Sonstiges"],
 ];
 
+type BookingReason = {
+  code: string;
+  name: string;
+  movementType: string;
+  active: boolean;
+};
+
 export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
   const searchParams = useSearchParams();
   const [barcode, setBarcode] = useState("");
@@ -51,6 +60,8 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
   const [targetWarehouseId, setTargetWarehouseId] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [reason, setReason] = useState("VERKAUF");
+  const [bookingReasons, setBookingReasons] = useState(reasonOptions);
+  const [labels, setLabels] = useState<Record<string, string>>({});
   const [note, setNote] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [emptyAction, setEmptyAction] = useState<"in" | "out">("in");
@@ -81,6 +92,20 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
     });
   }, []);
 
+  useEffect(() => {
+    apiFetch<{ labels: Record<string, string> }>("/api/app-config")
+      .then((config) => setLabels(config.labels))
+      .catch(() => undefined);
+    apiFetch<{ bookingReasons: BookingReason[] }>("/api/booking-reasons?movementType=STOCK_OUT&stockKind=FULL")
+      .then((data) => {
+        const options = data.bookingReasons
+          .filter((item) => item.active && item.movementType === "STOCK_OUT")
+          .map((item) => [item.code, item.name]);
+        if (options.length) setBookingReasons(options);
+      })
+      .catch(() => undefined);
+  }, []);
+
   const scan = useCallback(async (value: string) => {
     setBusy(true);
     setError("");
@@ -101,17 +126,34 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
 
   useEffect(() => {
     const initialBarcode = searchParams.get("barcode");
-    if (initialBarcode && !barcode && !article) {
+    if (mode !== "einbuchen" && initialBarcode && !barcode && !article) {
       scan(initialBarcode);
     }
-  }, [article, barcode, scan, searchParams]);
+  }, [article, barcode, mode, scan, searchParams]);
 
-  const title = titles[mode] ?? "Artikel suchen";
+  const title =
+    mode === "einbuchen"
+      ? labels["action.stockIn"] ?? titles[mode]
+      : mode === "ausbuchen"
+        ? labels["action.stockOut"] ?? titles[mode]
+        : mode === "umbuchen"
+          ? labels["action.transfer"] ?? titles[mode]
+          : mode === "leergut"
+            ? labels["action.empties"] ?? titles[mode]
+            : titles[mode] ?? "Artikel suchen";
   const isBookingMode = mode !== "suchen";
   const depositValue = useMemo(
     () => Number(article?.depositAmount ?? 0) * quantity,
     [article?.depositAmount, quantity],
   );
+
+  if (mode === "einbuchen") {
+    return <StockInBatchFlow />;
+  }
+
+  if (!["suchen", "ausbuchen", "umbuchen", "leergut"].includes(mode)) {
+    return <div className="status error">Unbekannter Scan-Modus.</div>;
+  }
 
   async function submitMovement(event: React.FormEvent) {
     event.preventDefault();
@@ -185,7 +227,7 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
         <div className="status error">
           <strong>{error}</strong>
           <span>Barcode: {barcode}</span>
-          {user.role === "ADMIN" && barcode ? (
+          {hasPermission(user, "article:write") && barcode ? (
             <Link className="secondary-action" href={`/artikel/neu?barcode=${encodeURIComponent(barcode)}`}>
               Artikel anlegen
             </Link>
@@ -278,7 +320,7 @@ export function ScanFlow({ mode, user }: { mode: string; user: CurrentUser }) {
                 <label className="field">
                   <span>Grund</span>
                   <select value={reason} onChange={(event) => setReason(event.target.value)}>
-                    {reasonOptions.map(([value, label]) => (
+                    {bookingReasons.map(([value, label]) => (
                       <option key={value} value={value}>
                         {label}
                       </option>

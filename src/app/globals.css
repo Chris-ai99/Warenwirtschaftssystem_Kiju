@@ -551,6 +551,115 @@ code {
   gap: 10px;
 }
 
+.admin-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.admin-tile {
+  display: grid;
+  min-height: 142px;
+  align-content: start;
+  gap: 10px;
+  padding: 18px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.admin-tile:hover,
+.admin-tile:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.admin-tile strong {
+  font-size: 1.12rem;
+}
+
+.admin-tile span {
+  color: var(--muted);
+}
+
+.admin-workbench {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.95fr) minmax(360px, 1.2fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-list-pane,
+.admin-form-pane {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-form-pane {
+  padding: 16px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.admin-form-pane h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.admin-table {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 64px;
+  padding: 12px 14px;
+  color: var(--text);
+  text-align: left;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.admin-row:hover,
+.admin-row:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.admin-row span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.admin-row small {
+  color: var(--muted);
+}
+
+.admin-row em {
+  color: var(--muted);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.permission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.danger-action {
+  color: var(--danger);
+}
+
 .toggle {
   display: flex;
   align-items: center;
@@ -566,6 +675,204 @@ code {
 .toggle input {
   width: 22px;
   min-height: 22px;
+}
+
+.icon-button.danger {
+  color: var(--danger);
+}
+
+.secondary-action.compact {
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 0.92rem;
+}
+
+.scanner-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
+  gap: 10px;
+}
+
+.scan-action-card {
+  display: grid;
+  min-height: 96px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px;
+  color: var(--text);
+  text-align: center;
+  text-decoration: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.scan-action-card.primary {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.unit-editor,
+.scan-batch-screen {
+  display: grid;
+  gap: 14px;
+}
+
+.section-heading-row,
+.batch-toolbar,
+.batch-row-main,
+.batch-quantity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.batch-toolbar {
+  align-items: stretch;
+}
+
+.batch-toolbar .field {
+  flex: 1;
+}
+
+.unit-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) minmax(120px, 0.8fr) minmax(160px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.unit-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scan-state-card,
+.last-scan-panel,
+.package-picker,
+.batch-row {
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.scan-state-card {
+  display: flex;
+  min-width: 210px;
+  align-items: center;
+  gap: 10px;
+}
+
+.scan-state-card div,
+.last-scan-panel,
+.package-picker > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.last-scan-panel span,
+.scan-state-card span,
+.package-picker span,
+.batch-row-main span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.last-scan-panel strong {
+  overflow-wrap: anywhere;
+  font-size: clamp(1.1rem, 4vw, 1.7rem);
+}
+
+.package-chip-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.package-chip {
+  display: inline-flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-weight: 800;
+}
+
+.package-chip.active {
+  color: white;
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.package-prompt {
+  margin-top: 10px;
+}
+
+.batch-list {
+  display: grid;
+  gap: 10px;
+}
+
+.batch-row {
+  display: grid;
+  gap: 12px;
+}
+
+.batch-row.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 24%, transparent);
+}
+
+.batch-row-status {
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.batch-quantity-row {
+  justify-content: start;
+}
+
+.batch-quantity-input {
+  display: grid;
+  gap: 4px;
+  min-width: 92px;
+  font-weight: 800;
+}
+
+.batch-quantity-input span {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.batch-quantity-input input {
+  width: 92px;
+  min-height: 46px;
+  text-align: center;
+}
+
+.batch-total {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+
+.batch-actions {
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
 }
 
 @media (max-width: 640px) {
@@ -596,14 +903,34 @@ code {
 
   .mode-grid,
   .form-grid,
-  .summary-grid {
+  .summary-grid,
+  .unit-row,
+  .batch-toolbar {
     grid-template-columns: 1fr;
   }
 
   .stock-row,
-  .movement-row {
+  .movement-row,
+  .admin-row,
+  .unit-row,
+  .batch-toolbar,
+  .batch-row-main,
+  .batch-quantity-row,
+  .section-heading-row {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .scan-state-card {
+    min-width: 0;
+  }
+
+  .batch-total {
+    margin-left: 0;
+  }
+
+  .admin-workbench {
+    grid-template-columns: 1fr;
   }
 
   .quantity-pills,
@@ -612,7 +939,8 @@ code {
     text-align: left;
   }
 
-  .sticky-actions {
+  .sticky-actions,
+  .batch-actions {
     grid-template-columns: 1fr;
   }
 }

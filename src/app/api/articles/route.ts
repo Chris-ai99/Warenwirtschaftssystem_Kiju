@@ -1,10 +1,16 @@
-import { MovementType, RoleCode, StockKind } from "@/generated/prisma/client";
+import { MovementType, StockKind } from "@/generated/prisma/client";
 import { requirePermission, requireUser, verifyCsrf } from "@/lib/auth";
+import {
+  assertBarcodesAvailable,
+  collectArticleBarcodes,
+  syncArticleUnits,
+  syncPrimaryBarcode,
+} from "@/lib/article-units";
 import { normalizeBarcode } from "@/lib/barcode";
-import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { ok, parseJson, route } from "@/lib/route";
 import { articleCreateSchema } from "@/lib/validation";
+import { hasPermission } from "@/lib/permissions";
 
 function slugify(value: string) {
   return value
@@ -31,7 +37,16 @@ export function GET(request: Request) {
       const value = normalizeBarcode(barcode);
       const match = await prisma.barcode.findUnique({
         where: { value },
-        include: { article: { include: { category: true, barcodes: true, stocks: true } } },
+        include: {
+          article: {
+            include: {
+              category: true,
+              barcodes: true,
+              stocks: true,
+              units: { include: { barcodes: true }, orderBy: { sortOrder: "asc" } },
+            },
+          },
+        },
       });
       return ok({ articles: match ? [match.article] : [] });
     }
@@ -53,6 +68,7 @@ export function GET(request: Request) {
       include: {
         category: true,
         barcodes: true,
+        units: { include: { barcodes: true }, orderBy: { sortOrder: "asc" } },
         stocks: { include: { warehouse: true } },
       },
       orderBy: { name: "asc" },
@@ -72,14 +88,10 @@ export function POST(request: Request) {
     const input = await parseJson(request, articleCreateSchema);
     const barcodeValue = input.barcode ? normalizeBarcode(input.barcode) : undefined;
 
-    if (barcodeValue) {
-      const duplicate = await prisma.barcode.findUnique({ where: { value: barcodeValue } });
-      if (duplicate) {
-        throw new AppError(409, "DUPLICATE_BARCODE", "Barcode ist bereits vergeben.");
-      }
-    }
-
     const article = await prisma.$transaction(async (tx) => {
+      await assertBarcodesAvailable(tx, collectArticleBarcodes(barcodeValue, input.units));
+
+      const canWritePrices = hasPermission(user, "price:write");
       let categoryId = input.categoryId ?? null;
       if (!categoryId && input.categoryName) {
         const category = await tx.category.upsert({
@@ -95,21 +107,20 @@ export function POST(request: Request) {
           articleNumber: input.articleNumber,
           name: input.name,
           categoryId,
-          purchasePrice: user.role === RoleCode.ADMIN ? input.purchasePrice : "0",
-          salePrice: user.role === RoleCode.ADMIN ? input.salePrice : "0",
-          depositAmount: user.role === RoleCode.ADMIN ? input.depositAmount : "0",
+          purchasePrice: canWritePrices ? input.purchasePrice : "0",
+          salePrice: canWritePrices ? input.salePrice : "0",
+          depositAmount: canWritePrices ? input.depositAmount : "0",
           unit: input.unit,
           description: input.description,
           imageUrl: input.imageUrl || null,
           active: input.active,
           supportsEmpties: input.supportsEmpties,
           lowStockThreshold: input.lowStockThreshold,
-          barcodes: barcodeValue
-            ? { create: { value: barcodeValue, primary: true } }
-            : undefined,
         },
-        include: { category: true, barcodes: true, stocks: true },
       });
+
+      await syncPrimaryBarcode(tx, created.id, barcodeValue);
+      await syncArticleUnits(tx, created.id, input.units);
 
       await tx.stockMovement.create({
         data: {
@@ -123,7 +134,15 @@ export function POST(request: Request) {
         },
       });
 
-      return created;
+      return tx.article.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          category: true,
+          barcodes: true,
+          units: { include: { barcodes: true }, orderBy: { sortOrder: "asc" } },
+          stocks: true,
+        },
+      });
     });
 
     return ok({ article }, { status: 201 });

@@ -1,4 +1,3 @@
-import { RoleCode } from "@/generated/prisma/client";
 import { hashPassword, requirePermission, requireUser, verifyCsrf } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, parseJson, route } from "@/lib/route";
@@ -33,7 +32,7 @@ export function POST(request: Request) {
     requirePermission(user, "user:write");
     const input = await parseJson(request, userCreateSchema);
     const role = await prisma.role.findUniqueOrThrow({
-      where: { code: input.roleCode as RoleCode },
+      where: { code: input.roleCode },
     });
     const created = await prisma.user.create({
       data: {

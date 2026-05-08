@@ -18,7 +18,7 @@ export function POST(request: Request) {
   return route(async () => {
     const user = await requireUser();
     await verifyCsrf(request);
-    requirePermission(user, "article:write");
+    requirePermission(user, "category:write");
     const input = await parseJson(request, categoryCreateSchema);
     const category = await prisma.category.create({ data: input });
     return ok({ category }, { status: 201 });

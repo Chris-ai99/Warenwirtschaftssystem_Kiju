@@ -1,4 +1,3 @@
-import { RoleCode } from "@/generated/prisma/client";
 import { hashPassword, requirePermission, requireUser, verifyCsrf } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ok, parseJson, route } from "@/lib/route";
@@ -12,7 +11,7 @@ export function PATCH(request: Request, context: { params: Promise<{ id: string 
     const { id } = await context.params;
     const input = await parseJson(request, userUpdateSchema);
     const role = input.roleCode
-      ? await prisma.role.findUniqueOrThrow({ where: { code: input.roleCode as RoleCode } })
+      ? await prisma.role.findUniqueOrThrow({ where: { code: input.roleCode } })
       : null;
 
     const updated = await prisma.user.update({

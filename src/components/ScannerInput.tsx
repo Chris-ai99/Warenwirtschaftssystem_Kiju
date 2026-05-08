@@ -1,70 +1,56 @@
 "use client";
 
 import { Keyboard, ScanLine, Search } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { normalizeBarcode } from "@/lib/barcode";
+import { apiFetch } from "@/lib/client-api";
+import { useScannerCapture } from "./useScannerCapture";
 
 type Props = {
   onScan: (barcode: string) => void;
   busy?: boolean;
   initialValue?: string;
+  prompt?: string;
 };
 
-function isTextField(element: Element | null) {
-  if (!element) return false;
-  if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
-    return element.dataset.scanField !== "true";
-  }
-  return element.getAttribute("contenteditable") === "true";
-}
-
-export function ScannerInput({ onScan, busy, initialValue = "" }: Props) {
+export function ScannerInput({
+  onScan,
+  busy,
+  initialValue = "",
+  prompt = "Hardware-Scanbutton drücken oder Code eingeben.",
+}: Props) {
   const [manual, setManual] = useState(initialValue);
-  const buffer = useRef("");
-  const timer = useRef<number | null>(null);
-  const lastScan = useRef<{ code: string; at: number } | null>(null);
-
-  const commit = useCallback((value: string) => {
-    const normalized = normalizeBarcode(value);
-    if (normalized.length < 3) return;
-    const previous = lastScan.current;
-    if (previous?.code === normalized && Date.now() - previous.at < 600) return;
-    lastScan.current = { code: normalized, at: Date.now() };
-    setManual(normalized);
-    onScan(normalized);
-  }, [onScan]);
+  const [settings, setSettings] = useState({
+    minBarcodeLength: 3,
+    scanTimeoutMs: 90,
+    duplicateWindowMs: 600,
+    enterSuffix: true,
+  });
 
   useEffect(() => {
-    function resetTimer() {
-      if (timer.current) window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => {
-        if (buffer.current.length >= 6) commit(buffer.current);
-        buffer.current = "";
-      }, 90);
-    }
+    apiFetch<{ settings: { scanner?: Partial<typeof settings> } }>("/api/app-config")
+      .then((config) => setSettings((current) => ({ ...current, ...config.settings.scanner })))
+      .catch(() => undefined);
+  }, []);
 
-    function onKeyDown(event: KeyboardEvent) {
-      if (busy || isTextField(document.activeElement)) return;
-      if (event.key === "Enter" || event.key === "Tab") {
-        if (buffer.current) {
-          event.preventDefault();
-          commit(buffer.current);
-          buffer.current = "";
-        }
-        return;
-      }
-      if (event.key.length === 1) {
-        buffer.current += event.key;
-        resetTimer();
-      }
-    }
+  const commit = useCallback(
+    (value: string) => {
+      const normalized = normalizeBarcode(value);
+      if (normalized.length < settings.minBarcodeLength) return;
+      setManual(normalized);
+      onScan(normalized);
+    },
+    [onScan, settings.minBarcodeLength],
+  );
 
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      if (timer.current) window.clearTimeout(timer.current);
-    };
-  }, [busy, commit]);
+  useScannerCapture({
+    busy,
+    onScan: commit,
+    minBarcodeLength: settings.minBarcodeLength,
+    scanTimeoutMs: settings.scanTimeoutMs,
+    duplicateWindowMs: settings.duplicateWindowMs,
+    enterSuffix: settings.enterSuffix,
+  });
 
   return (
     <div className="scanner-panel">
@@ -72,7 +58,7 @@ export function ScannerInput({ onScan, busy, initialValue = "" }: Props) {
         <ScanLine size={34} aria-hidden />
         <div>
           <strong>Barcode scannen</strong>
-          <span>Hardware-Scanbutton drücken oder Code eingeben.</span>
+          <span>{prompt}</span>
         </div>
       </div>
       <label className="field">
@@ -82,20 +68,19 @@ export function ScannerInput({ onScan, busy, initialValue = "" }: Props) {
         </span>
         <div className="inline-field">
           <input
-            data-scan-field="true"
             value={manual}
             inputMode="numeric"
             autoComplete="off"
             onChange={(event) => setManual(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Enter") {
+              if (event.key === "Enter" || event.key === "Tab") {
                 event.preventDefault();
                 commit(manual);
               }
             }}
             placeholder="z. B. 4000000000017"
           />
-          <button className="icon-button filled" onClick={() => commit(manual)} disabled={busy}>
+          <button className="icon-button filled" type="button" onClick={() => commit(manual)} disabled={busy}>
             <Search size={20} aria-hidden />
           </button>
         </div>

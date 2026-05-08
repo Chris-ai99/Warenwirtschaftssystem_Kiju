@@ -1,9 +1,15 @@
-import { RoleCode } from "@/generated/prisma/client";
 import { requirePermission, requireUser, verifyCsrf } from "@/lib/auth";
+import {
+  assertBarcodesAvailable,
+  collectArticleBarcodes,
+  syncArticleUnits,
+  syncPrimaryBarcode,
+} from "@/lib/article-units";
 import { AppError } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { ok, parseJson, route } from "@/lib/route";
 import { articleUpdateSchema } from "@/lib/validation";
+import { hasPermission } from "@/lib/permissions";
 
 export function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   return route(async () => {
@@ -16,6 +22,7 @@ export function GET(_request: Request, context: { params: Promise<{ id: string }
       include: {
         category: true,
         barcodes: true,
+        units: { include: { barcodes: true }, orderBy: { sortOrder: "asc" } },
         stocks: { include: { warehouse: true } },
         movements: {
           include: { user: true, fromWarehouse: true, toWarehouse: true },
@@ -40,24 +47,48 @@ export function PATCH(request: Request, context: { params: Promise<{ id: string 
     requirePermission(user, "article:write");
     const { id } = await context.params;
     const input = await parseJson(request, articleUpdateSchema);
+    const canWritePrices = hasPermission(user, "price:write");
 
-    const article = await prisma.article.update({
-      where: { id },
-      data: {
-        articleNumber: input.articleNumber,
-        name: input.name,
-        categoryId: input.categoryId,
-        purchasePrice: user.role === RoleCode.ADMIN ? input.purchasePrice : undefined,
-        salePrice: user.role === RoleCode.ADMIN ? input.salePrice : undefined,
-        depositAmount: user.role === RoleCode.ADMIN ? input.depositAmount : undefined,
-        unit: input.unit,
-        description: input.description,
-        imageUrl: input.imageUrl || undefined,
-        active: input.active,
-        supportsEmpties: input.supportsEmpties,
-        lowStockThreshold: input.lowStockThreshold,
-      },
-      include: { category: true, barcodes: true, stocks: true },
+    const article = await prisma.$transaction(async (tx) => {
+      const existing = await tx.article.findUnique({ where: { id } });
+      if (!existing) {
+        throw new AppError(404, "ARTICLE_NOT_FOUND", "Artikel wurde nicht gefunden.");
+      }
+
+      await assertBarcodesAvailable(tx, collectArticleBarcodes(input.barcode, input.units ?? []), id);
+
+      const updated = await tx.article.update({
+        where: { id },
+        data: {
+          articleNumber: input.articleNumber,
+          name: input.name,
+          categoryId: input.categoryId,
+          purchasePrice: canWritePrices ? input.purchasePrice : undefined,
+          salePrice: canWritePrices ? input.salePrice : undefined,
+          depositAmount: canWritePrices ? input.depositAmount : undefined,
+          unit: input.unit,
+          description: input.description,
+          imageUrl: input.imageUrl || undefined,
+          active: input.active,
+          supportsEmpties: input.supportsEmpties,
+          lowStockThreshold: input.lowStockThreshold,
+        },
+      });
+
+      if (input.units) {
+        await syncArticleUnits(tx, updated.id, input.units);
+      }
+      await syncPrimaryBarcode(tx, updated.id, input.barcode);
+
+      return tx.article.findUniqueOrThrow({
+        where: { id: updated.id },
+        include: {
+          category: true,
+          barcodes: true,
+          units: { include: { barcodes: true }, orderBy: { sortOrder: "asc" } },
+          stocks: true,
+        },
+      });
     });
 
     return ok({ article });

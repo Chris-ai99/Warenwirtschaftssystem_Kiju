@@ -1,7 +1,6 @@
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { createHash, randomBytes } from "node:crypto";
-import { RoleCode } from "@/generated/prisma/client";
 import { prisma } from "./prisma";
 import { AppError } from "./errors";
 import { hasPermission, type Permission } from "./permissions";
@@ -15,7 +14,9 @@ export type CurrentUser = {
   id: string;
   email: string;
   name: string;
-  role: RoleCode;
+  role: string;
+  roleId: string;
+  permissions: string[];
 };
 
 function hashToken(token: string) {
@@ -84,10 +85,23 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
 
   const session = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { include: { role: true } } },
+    include: {
+      user: {
+        include: {
+          role: {
+            include: {
+              rolePermissions: {
+                where: { enabled: true },
+                include: { permission: true },
+              },
+            },
+          },
+        },
+      },
+    },
   });
 
-  if (!session || session.expiresAt < new Date() || !session.user.active) {
+  if (!session || session.expiresAt < new Date() || !session.user.active || !session.user.role.active) {
     if (session) {
       await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined);
     }
@@ -99,6 +113,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     email: session.user.email,
     name: session.user.name,
     role: session.user.role.code,
+    roleId: session.user.roleId,
+    permissions: session.user.role.rolePermissions.map((item) => item.permission.key),
   };
 }
 
@@ -111,12 +127,12 @@ export async function requireUser() {
 }
 
 export function requirePermission(user: CurrentUser, permission: Permission) {
-  if (!hasPermission(user.role, permission)) {
+  if (!hasPermission(user, permission)) {
     throw new AppError(403, "FORBIDDEN", "Dafür fehlen die Berechtigungen.");
   }
 }
 
-export function requireRole(user: CurrentUser, roles: RoleCode[]) {
+export function requireRole(user: CurrentUser, roles: string[]) {
   if (!roles.includes(user.role)) {
     throw new AppError(403, "FORBIDDEN", "Dafür fehlen die Berechtigungen.");
   }

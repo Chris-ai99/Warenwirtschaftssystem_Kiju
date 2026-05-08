@@ -2,6 +2,17 @@ export type BarcodeDto = {
   id?: string;
   value: string;
   primary: boolean;
+  articleUnitId?: string | null;
+};
+
+export type ArticleUnitDto = {
+  id: string;
+  label: string;
+  quantity: number;
+  sortOrder: number;
+  isDefault: boolean;
+  active: boolean;
+  barcodes?: BarcodeDto[];
 };
 
 export type CategoryDto = {
@@ -35,10 +46,14 @@ export type ArticleDto = {
   purchasePrice: string;
   salePrice: string;
   depositAmount: string;
+  description?: string | null;
+  imageUrl?: string | null;
   active: boolean;
   supportsEmpties: boolean;
+  lowStockThreshold: number;
   category?: CategoryDto | null;
   barcodes: BarcodeDto[];
+  units?: ArticleUnitDto[];
   stocks: StockDto[];
   movements?: MovementDto[];
 };
@@ -52,6 +67,9 @@ export type MovementDto = {
   reason?: string | null;
   note?: string | null;
   barcodeValue?: string | null;
+  unitLabel?: string | null;
+  unitQuantity?: number | null;
+  unitCount?: number | null;
   article: Pick<ArticleDto, "id" | "name" | "articleNumber">;
   user: { id?: string; name: string; email?: string };
   fromWarehouse?: WarehouseDto | null;

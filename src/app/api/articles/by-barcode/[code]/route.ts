@@ -14,10 +14,12 @@ export function GET(_request: Request, context: { params: Promise<{ code: string
     const barcode = await prisma.barcode.findUnique({
       where: { value },
       include: {
+        articleUnit: true,
         article: {
           include: {
             category: true,
             barcodes: true,
+            units: { include: { barcodes: true }, orderBy: { sortOrder: "asc" } },
             stocks: { include: { warehouse: true } },
             movements: {
               include: { user: true, fromWarehouse: true, toWarehouse: true },
@@ -35,6 +37,6 @@ export function GET(_request: Request, context: { params: Promise<{ code: string
       });
     }
 
-    return ok({ article: barcode.article, barcode: value });
+    return ok({ article: barcode.article, barcode: value, unit: barcode.articleUnit });
   });
 }

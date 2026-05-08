@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MovementReason, WarehouseType } from "@/generated/prisma/client";
+import { WarehouseType } from "@/generated/prisma/client";
 import { normalizeBarcode } from "./barcode";
 
 const decimalString = z
@@ -12,21 +12,42 @@ export const barcodeSchema = z
   .transform(normalizeBarcode)
   .pipe(z.string().min(3).max(64));
 
+const optionalBarcodeSchema = z
+  .union([barcodeSchema, z.literal("")])
+  .optional()
+  .transform((value) => (value === "" ? undefined : value));
+
+const moneyString = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? "0" : value),
+  decimalString,
+);
+
+const articleUnitInputSchema = z.object({
+  id: z.string().uuid().optional(),
+  label: z.string().trim().min(1).max(80),
+  quantity: z.coerce.number().int().positive().max(10000),
+  sortOrder: z.coerce.number().int().min(0).default(0),
+  isDefault: z.boolean().default(false),
+  active: z.boolean().default(true),
+  barcode: optionalBarcodeSchema,
+});
+
 export const articleCreateSchema = z.object({
-  barcode: barcodeSchema.optional(),
+  barcode: optionalBarcodeSchema,
   articleNumber: z.string().trim().min(1).max(80),
   name: z.string().trim().min(1).max(180),
   categoryId: z.string().uuid().nullable().optional(),
   categoryName: z.string().trim().max(120).optional(),
-  purchasePrice: decimalString.default("0"),
-  salePrice: decimalString.default("0"),
-  depositAmount: decimalString.default("0"),
+  purchasePrice: moneyString.default("0"),
+  salePrice: moneyString.default("0"),
+  depositAmount: moneyString.default("0"),
   unit: z.string().trim().min(1).max(40).default("Stück"),
   description: z.string().trim().max(2000).optional(),
   imageUrl: z.string().url().optional().or(z.literal("")),
   active: z.boolean().default(true),
   supportsEmpties: z.boolean().default(false),
   lowStockThreshold: z.coerce.number().int().min(0).default(0),
+  units: z.array(articleUnitInputSchema).max(20).default([]),
 });
 
 export const articleUpdateSchema = articleCreateSchema.partial().extend({
@@ -61,8 +82,27 @@ export const stockInSchema = z.object({
   warehouseId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
   barcodeValue: barcodeSchema.optional(),
+  reason: z.string().trim().max(120).optional(),
   unitCost: decimalString.optional(),
   note: z.string().trim().max(1000).optional(),
+});
+
+export const stockInBatchSchema = z.object({
+  warehouseId: z.string().uuid(),
+  reason: z.string().trim().max(120).optional(),
+  note: z.string().trim().max(1000).optional(),
+  items: z
+    .array(
+      z.object({
+        articleId: z.string().uuid(),
+        articleUnitId: z.string().uuid().nullable().optional(),
+        unitCount: z.coerce.number().int().positive().max(100000),
+        barcodeValue: barcodeSchema.optional(),
+        note: z.string().trim().max(1000).optional(),
+      }),
+    )
+    .min(1)
+    .max(200),
 });
 
 export const stockOutSchema = z.object({
@@ -70,7 +110,7 @@ export const stockOutSchema = z.object({
   warehouseId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
   barcodeValue: barcodeSchema.optional(),
-  reason: z.enum(MovementReason).default(MovementReason.SONSTIGES),
+  reason: z.string().trim().max(120).optional(),
   note: z.string().trim().max(1000).optional(),
 });
 
@@ -80,6 +120,7 @@ export const stockTransferSchema = z.object({
   toWarehouseId: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
   barcodeValue: barcodeSchema.optional(),
+  reason: z.string().trim().max(120).optional(),
   note: z.string().trim().max(1000).optional(),
 });
 
@@ -92,7 +133,7 @@ export const userCreateSchema = z.object({
   email: z.string().email().transform((email) => email.toLowerCase()),
   name: z.string().trim().min(1).max(120),
   password: z.string().min(8),
-  roleCode: z.enum(["ADMIN", "MITARBEITER"]).default("MITARBEITER"),
+  roleCode: z.string().trim().min(1).max(80).default("MITARBEITER"),
   active: z.boolean().default(true),
 });
 

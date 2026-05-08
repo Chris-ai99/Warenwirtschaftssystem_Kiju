@@ -18,6 +18,13 @@ export function POST(request: Request, context: { params: Promise<{ id: string }
     if (!article) {
       throw new AppError(404, "ARTICLE_NOT_FOUND", "Artikel wurde nicht gefunden.");
     }
+    const articleUnitId = typeof body.articleUnitId === "string" ? body.articleUnitId : null;
+    if (articleUnitId) {
+      const unit = await prisma.productPackagingUnit.findFirst({ where: { id: articleUnitId, articleId: id } });
+      if (!unit) {
+        throw new AppError(404, "ARTICLE_UNIT_NOT_FOUND", "Gebindegröße wurde nicht gefunden.");
+      }
+    }
 
     const duplicate = await prisma.barcode.findUnique({ where: { value: normalizeBarcode(value) } });
     if (duplicate) {
@@ -27,6 +34,7 @@ export function POST(request: Request, context: { params: Promise<{ id: string }
     const barcode = await prisma.barcode.create({
       data: {
         articleId: id,
+        articleUnitId,
         value: normalizeBarcode(value),
         primary: body.primary === true,
         type: body.type ?? "EAN",

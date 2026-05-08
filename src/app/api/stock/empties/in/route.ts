@@ -7,7 +7,7 @@ export function POST(request: Request) {
   return route(async () => {
     const user = await requireUser();
     await verifyCsrf(request);
-    requirePermission(user, "stock:book");
+    requirePermission(user, "stock:empty");
     const input = await parseJson(request, stockInSchema);
     const movement = await bookEmptyIn(
       { ...input, idempotencyKey: request.headers.get("idempotency-key") },

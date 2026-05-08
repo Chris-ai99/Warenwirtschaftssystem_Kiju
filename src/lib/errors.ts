@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
+import { createRandomId } from "./random-id";
 
 export class AppError extends Error {
   constructor(
@@ -25,7 +26,7 @@ export function assertCondition(
 }
 
 export function errorResponse(error: unknown) {
-  const requestId = crypto.randomUUID();
+  const requestId = createRandomId();
 
   if (error instanceof AppError) {
     return NextResponse.json(

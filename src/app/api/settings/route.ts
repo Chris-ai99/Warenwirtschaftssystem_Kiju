@@ -6,7 +6,7 @@ import { settingsUpdateSchema } from "@/lib/validation";
 export function GET() {
   return route(async () => {
     const user = await requireUser();
-    requirePermission(user, "article:read");
+    requirePermission(user, "settings:read");
     const settings = await prisma.settings.findMany();
     return ok({
       settings: Object.fromEntries(settings.map((setting) => [setting.key, setting.value])),

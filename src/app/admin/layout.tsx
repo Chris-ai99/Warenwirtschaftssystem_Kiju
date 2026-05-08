@@ -1,14 +1,14 @@
 import { redirect } from "next/navigation";
-import { RoleCode } from "@/generated/prisma/client";
 import { AdminNav } from "@/components/AdminNav";
 import { AppShell } from "@/components/AppShell";
 import { getPageUser } from "@/lib/page-auth";
+import { hasPermission } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getPageUser();
-  if (user.role !== RoleCode.ADMIN) {
+  if (!hasPermission(user, "admin:access")) {
     redirect("/");
   }
 

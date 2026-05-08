@@ -7,17 +7,13 @@ datasource db {
   provider = "postgresql"
 }
 
-enum RoleCode {
-  ADMIN
-  MITARBEITER
-}
-
 enum WarehouseType {
   MAIN
   SALES
   VEHICLE
   EXTERNAL
   EMPTIES
+  OTHER
 }
 
 enum MovementType {
@@ -46,31 +42,92 @@ enum MovementReason {
 }
 
 model Role {
-  id          String   @id @default(uuid())
-  code        RoleCode @unique
-  name        String
-  permissions Json?
-  users       User[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String           @id @default(uuid())
+  code            String           @unique
+  name            String
+  description     String?
+  active          Boolean          @default(true)
+  system          Boolean          @default(false)
+  permissions     Json?
+  users           User[]
+  rolePermissions RolePermission[]
+  menuConfigs     MenuConfig[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([active])
+}
+
+model Permission {
+  id              String           @id @default(uuid())
+  key             String           @unique
+  name            String
+  description     String?
+  group           String
+  sortOrder       Int              @default(0)
+  rolePermissions RolePermission[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([group])
+}
+
+model RolePermission {
+  roleId       String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  enabled      Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
 }
 
 model User {
-  id              String          @id @default(uuid())
-  email           String          @unique
+  id              String               @id @default(uuid())
+  email           String               @unique
   name            String
   passwordHash    String
-  active          Boolean         @default(true)
+  active          Boolean              @default(true)
   roleId          String
-  role            Role            @relation(fields: [roleId], references: [id])
+  role            Role                 @relation(fields: [roleId], references: [id])
   sessions        Session[]
   movements       StockMovement[]
-  settingsUpdated Settings[]      @relation("SettingsUpdatedBy")
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  movementBatches StockMovementBatch[]
+  settingsUpdated Settings[]           @relation("SettingsUpdatedBy")
+  auditLogs       AuditLog[]
+  warehouseAccess UserWarehouseAccess[]
+  locationAccess  UserLocationAccess[]
+  lastLoginAt     DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   @@index([roleId])
   @@index([active])
+}
+
+model UserWarehouseAccess {
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  warehouseId String
+  warehouse   Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+
+  @@id([userId, warehouseId])
+  @@index([warehouseId])
+}
+
+model UserLocationAccess {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@id([userId, locationId])
+  @@index([locationId])
 }
 
 model Session {
@@ -85,112 +142,242 @@ model Session {
   @@index([expiresAt])
 }
 
+model Location {
+  id          String               @id @default(uuid())
+  name        String
+  code        String               @unique
+  active      Boolean              @default(true)
+  isDefault   Boolean              @default(false)
+  sortOrder   Int                  @default(0)
+  warehouses  Warehouse[]
+  userAccess  UserLocationAccess[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
 model Category {
-  id        String     @id @default(uuid())
-  name      String
-  slug      String     @unique
-  active    Boolean    @default(true)
-  parentId  String?
-  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id])
-  children  Category[] @relation("CategoryTree")
-  articles  Article[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id                   String     @id @default(uuid())
+  name                 String
+  slug                 String     @unique
+  active               Boolean    @default(true)
+  parentId             String?
+  parent               Category?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children             Category[] @relation("CategoryTree")
+  articles             Article[]
+  color                String?
+  icon                 String?
+  sortOrder            Int        @default(0)
+  isDefault            Boolean    @default(false)
+  depositEnabled       Boolean    @default(false)
+  emptiesEnabled       Boolean    @default(false)
+  defaultUnit          String?
+  defaultDepositAmount Decimal?   @db.Decimal(12, 2)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
 
   @@index([active])
   @@index([parentId])
+  @@index([sortOrder])
 }
 
 model Article {
-  id               String          @id @default(uuid())
-  articleNumber    String          @unique
-  name             String
-  categoryId       String?
-  category         Category?       @relation(fields: [categoryId], references: [id])
-  purchasePrice    Decimal         @default(0) @db.Decimal(12, 2)
-  salePrice        Decimal         @default(0) @db.Decimal(12, 2)
-  depositAmount    Decimal         @default(0) @db.Decimal(12, 2)
-  unit             String          @default("Stück")
-  description      String?
-  imageUrl         String?
-  active           Boolean         @default(true)
-  supportsEmpties  Boolean         @default(false)
-  lowStockThreshold Int            @default(0)
-  barcodes         Barcode[]
-  stocks           Stock[]
-  movements        StockMovement[]
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  id                String                 @id @default(uuid())
+  articleNumber     String                 @unique
+  name              String
+  categoryId        String?
+  category          Category?              @relation(fields: [categoryId], references: [id])
+  purchasePrice     Decimal                @default(0) @db.Decimal(12, 2)
+  salePrice         Decimal                @default(0) @db.Decimal(12, 2)
+  depositAmount     Decimal                @default(0) @db.Decimal(12, 2)
+  unit              String                 @default("Stück")
+  description       String?
+  imageUrl          String?
+  active            Boolean                @default(true)
+  supportsEmpties   Boolean                @default(false)
+  lowStockThreshold Int                    @default(0)
+  barcodes          Barcode[]
+  units             ProductPackagingUnit[]
+  stocks            Stock[]
+  movements         StockMovement[]
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
 
   @@index([name])
   @@index([categoryId])
   @@index([active])
 }
 
+model PackagingUnit {
+  id             String                 @id @default(uuid())
+  code           String                 @unique
+  name           String
+  quantity       Int                    @default(1)
+  active         Boolean                @default(true)
+  sortOrder      Int                    @default(0)
+  categoryId     String?
+  categoryName   String?
+  depositAmount  Decimal?               @db.Decimal(12, 2)
+  productUnits   ProductPackagingUnit[]
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  @@index([active])
+  @@index([sortOrder])
+}
+
+model ProductPackagingUnit {
+  id              String          @id @default(uuid())
+  articleId       String
+  article         Article         @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  packagingUnitId String?
+  packagingUnit   PackagingUnit?  @relation(fields: [packagingUnitId], references: [id], onDelete: SetNull)
+  label           String
+  quantity        Int
+  sortOrder       Int             @default(0)
+  isDefault       Boolean         @default(false)
+  active          Boolean         @default(true)
+  barcodes        Barcode[]
+  movements       StockMovement[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@map("ArticleUnit")
+  @@index([articleId])
+  @@index([packagingUnitId])
+  @@index([active])
+}
+
 model Barcode {
-  id        String   @id @default(uuid())
-  articleId String
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  value     String   @unique
-  type      String   @default("EAN")
-  primary   Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String                @id @default(uuid())
+  articleId     String
+  article       Article               @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleUnitId String?
+  articleUnit   ProductPackagingUnit? @relation(fields: [articleUnitId], references: [id], onDelete: SetNull)
+  value         String                @unique
+  type          String                @default("EAN")
+  primary       Boolean               @default(false)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
 
   @@index([articleId])
+  @@index([articleUnitId])
 }
 
 model Warehouse {
-  id             String          @id @default(uuid())
-  name           String
-  code           String          @unique
-  type           WarehouseType   @default(MAIN)
-  active         Boolean         @default(true)
-  stocks         Stock[]
-  movementsFrom  StockMovement[] @relation("MovementFromWarehouse")
-  movementsTo    StockMovement[] @relation("MovementToWarehouse")
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                 String                @id @default(uuid())
+  name               String
+  code               String                @unique
+  type               WarehouseType         @default(MAIN)
+  active             Boolean               @default(true)
+  locationId         String?
+  location           Location?             @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  visibleToEmployees Boolean               @default(true)
+  isDefault          Boolean               @default(false)
+  sortOrder          Int                   @default(0)
+  stocks             Stock[]
+  movementsFrom      StockMovement[]       @relation("MovementFromWarehouse")
+  movementsTo        StockMovement[]       @relation("MovementToWarehouse")
+  movementBatches    StockMovementBatch[]
+  userAccess         UserWarehouseAccess[]
+  auditLogs          AuditLog[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   @@index([active])
   @@index([type])
+  @@index([locationId])
+  @@index([sortOrder])
 }
 
 model Stock {
-  id          String    @id @default(uuid())
-  articleId   String
-  article     Article   @relation(fields: [articleId], references: [id])
-  warehouseId String
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
-  fullQuantity Int      @default(0)
-  emptyQuantity Int     @default(0)
-  reservedQuantity Int  @default(0)
-  updatedAt   DateTime  @updatedAt
-  createdAt   DateTime  @default(now())
+  id               String    @id @default(uuid())
+  articleId        String
+  article          Article   @relation(fields: [articleId], references: [id])
+  warehouseId      String
+  warehouse        Warehouse @relation(fields: [warehouseId], references: [id])
+  fullQuantity     Int       @default(0)
+  emptyQuantity    Int       @default(0)
+  reservedQuantity Int       @default(0)
+  updatedAt        DateTime  @updatedAt
+  createdAt        DateTime  @default(now())
 
   @@unique([articleId, warehouseId])
   @@index([articleId])
   @@index([warehouseId])
 }
 
+model BookingReason {
+  id             String          @id @default(uuid())
+  code           String          @unique
+  name           String
+  movementType   MovementType
+  stockKind      StockKind?
+  active         Boolean         @default(true)
+  isDefault      Boolean         @default(false)
+  noteRequired   Boolean         @default(false)
+  sortOrder      Int             @default(0)
+  permissionKey  String?
+  movements      StockMovement[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([movementType])
+  @@index([active])
+  @@index([sortOrder])
+}
+
+model StockMovementBatch {
+  id             String          @id @default(uuid())
+  type           MovementType    @default(STOCK_IN)
+  stockKind      StockKind       @default(FULL)
+  warehouseId    String
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
+  userId         String
+  user           User            @relation(fields: [userId], references: [id])
+  note           String?
+  idempotencyKey String?         @unique
+  itemCount      Int
+  totalQuantity  Int
+  movements      StockMovement[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([warehouseId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
 model StockMovement {
-  id                String          @id @default(uuid())
+  id                String                @id @default(uuid())
   type              MovementType
   stockKind         StockKind
   articleId         String
-  article           Article         @relation(fields: [articleId], references: [id])
+  article           Article               @relation(fields: [articleId], references: [id])
   barcodeValue      String?
   quantity          Int
   fromWarehouseId   String?
-  fromWarehouse     Warehouse?      @relation("MovementFromWarehouse", fields: [fromWarehouseId], references: [id])
+  fromWarehouse     Warehouse?            @relation("MovementFromWarehouse", fields: [fromWarehouseId], references: [id])
   toWarehouseId     String?
-  toWarehouse       Warehouse?      @relation("MovementToWarehouse", fields: [toWarehouseId], references: [id])
+  toWarehouse       Warehouse?            @relation("MovementToWarehouse", fields: [toWarehouseId], references: [id])
   reason            MovementReason?
+  bookingReasonId   String?
+  bookingReason     BookingReason?        @relation(fields: [bookingReasonId], references: [id], onDelete: SetNull)
   note              String?
-  unitCost          Decimal?        @db.Decimal(12, 2)
+  unitCost          Decimal?              @db.Decimal(12, 2)
   userId            String
-  user              User            @relation(fields: [userId], references: [id])
-  idempotencyKey    String?         @unique
+  user              User                  @relation(fields: [userId], references: [id])
+  batchId           String?
+  batch             StockMovementBatch?   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  articleUnitId     String?
+  articleUnit       ProductPackagingUnit? @relation(fields: [articleUnitId], references: [id], onDelete: SetNull)
+  unitLabel         String?
+  unitQuantity      Int?
+  unitCount         Int?
+  idempotencyKey    String?               @unique
   sourceFullBefore  Int?
   sourceFullAfter   Int?
   sourceEmptyBefore Int?
@@ -199,7 +386,7 @@ model StockMovement {
   targetFullAfter   Int?
   targetEmptyBefore Int?
   targetEmptyAfter  Int?
-  createdAt         DateTime        @default(now())
+  createdAt         DateTime              @default(now())
 
   @@index([createdAt])
   @@index([articleId])
@@ -207,6 +394,9 @@ model StockMovement {
   @@index([type])
   @@index([fromWarehouseId])
   @@index([toWarehouseId])
+  @@index([batchId])
+  @@index([articleUnitId])
+  @@index([bookingReasonId])
 }
 
 model Settings {
@@ -214,7 +404,69 @@ model Settings {
   key         String   @unique
   value       Json
   updatedById String?
-  updatedBy   User?   @relation("SettingsUpdatedBy", fields: [updatedById], references: [id])
+  updatedBy   User?    @relation("SettingsUpdatedBy", fields: [updatedById], references: [id])
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model UiLabel {
+  id           String   @id @default(uuid())
+  key          String   @unique
+  defaultLabel String
+  label        String
+  description  String?
+  area         String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([area])
+  @@index([active])
+}
+
+model MenuConfig {
+  id          String   @id @default(uuid())
+  key         String
+  label       String
+  href        String
+  icon        String?
+  visible     Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  roleId      String?
+  role        Role?    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  isStartPage Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, roleId])
+  @@index([visible])
+  @@index([sortOrder])
+  @@index([roleId])
+}
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  userId      String?
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  area        String
+  action      String
+  entityType  String
+  entityId    String?
+  entityLabel String?
+  articleId   String?
+  warehouseId String?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  locationId  String?
+  location    Location?  @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  metadata    Json?
+  createdAt   DateTime   @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([area])
+  @@index([action])
+  @@index([entityType])
+  @@index([articleId])
+  @@index([warehouseId])
+  @@index([locationId])
 }

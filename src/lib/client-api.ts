@@ -1,5 +1,7 @@
 "use client";
 
+import { createRandomId } from "./random-id";
+
 function readCookie(name: string) {
   return document.cookie
     .split("; ")
@@ -19,7 +21,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
     const csrf = readCookie("kiju_csrf");
     if (csrf) headers.set("x-csrf-token", decodeURIComponent(csrf));
     if (!headers.has("idempotency-key") && path.startsWith("/api/stock/")) {
-      headers.set("idempotency-key", crypto.randomUUID());
+      headers.set("idempotency-key", createRandomId());
     }
   }
 

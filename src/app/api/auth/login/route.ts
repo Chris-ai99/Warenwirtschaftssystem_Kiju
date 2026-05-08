@@ -3,7 +3,6 @@ import { AppError } from "@/lib/errors";
 import { createSession, verifyPassword } from "@/lib/auth";
 import { loginSchema } from "@/lib/validation";
 import { ok, parseJson, route } from "@/lib/route";
-import { permissionsForRole } from "@/lib/permissions";
 
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
@@ -36,16 +35,26 @@ export function POST(request: Request) {
 
     const user = await prisma.user.findUnique({
       where: { email: input.email },
-      include: { role: true },
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              where: { enabled: true },
+              include: { permission: true },
+            },
+          },
+        },
+      },
     });
 
     const valid = user ? await verifyPassword(input.password, user.passwordHash) : false;
-    if (!user || !valid || !user.active) {
+    if (!user || !valid || !user.active || !user.role.active) {
       recordFailedAttempt(key);
       throw new AppError(401, "INVALID_CREDENTIALS", "E-Mail oder Passwort ist falsch.");
     }
 
     attempts.delete(key);
+    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await createSession(user.id);
 
     return ok({
@@ -54,7 +63,8 @@ export function POST(request: Request) {
         email: user.email,
         name: user.name,
         role: user.role.code,
-        permissions: permissionsForRole(user.role.code),
+        roleId: user.roleId,
+        permissions: user.role.rolePermissions.map((item) => item.permission.key),
       },
     });
   });
