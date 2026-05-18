@@ -25,6 +25,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArticleImage } from "./ArticleImage";
 import { normalizeBarcode } from "@/lib/barcode";
 import { apiFetch } from "@/lib/client-api";
 
@@ -604,14 +605,21 @@ function AdminField({
   }
 
   return (
-    <label className="field">
+    <label className={field.key === "imageUrl" ? "field wide" : "field"}>
       <span>{field.label}</span>
       <input
-        type={field.type === "number" ? "number" : "text"}
+        type={field.type === "number" ? "number" : field.key === "imageUrl" ? "url" : "text"}
         value={String(value ?? "")}
         onChange={(event) => onChange(field.type === "number" ? Number(event.target.value) : event.target.value)}
-        placeholder={field.placeholder}
+        placeholder={field.key === "imageUrl" ? "https://..." : field.placeholder}
       />
+      {field.key === "imageUrl" ? (
+        <ArticleImage
+          src={String(value ?? "")}
+          alt="Vorschau Artikelbild"
+          className="article-image-preview compact"
+        />
+      ) : null}
     </label>
   );
 }

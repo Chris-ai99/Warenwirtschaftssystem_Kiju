@@ -1,4 +1,6 @@
+import { ArticleImage } from "./ArticleImage";
 import { euro } from "@/lib/format";
+import { displayableImageUrl } from "@/lib/image-url";
 
 type Stock = {
   fullQuantity: number;
@@ -14,6 +16,7 @@ type Article = {
   salePrice: string;
   purchasePrice: string;
   depositAmount: string;
+  imageUrl?: string | null;
   supportsEmpties: boolean;
   barcodes?: { value: string; primary: boolean }[];
   stocks?: Stock[];
@@ -23,36 +26,42 @@ type Article = {
 export function ArticleSummary({ article }: { article: Article }) {
   const full = article.stocks?.reduce((sum, stock) => sum + stock.fullQuantity, 0) ?? 0;
   const empty = article.stocks?.reduce((sum, stock) => sum + stock.emptyQuantity, 0) ?? 0;
+  const imageUrl = displayableImageUrl(article.imageUrl);
 
   return (
-    <article className="article-summary">
-      <div>
-        <p className="eyebrow">{article.category?.name ?? "Ohne Kategorie"}</p>
-        <h2>{article.name}</h2>
-        <p>{article.articleNumber}</p>
-      </div>
-      <div className="summary-grid">
-        <span>
-          Vollgut
-          <strong>{full}</strong>
-        </span>
-        <span>
-          Leergut
-          <strong>{empty}</strong>
-        </span>
-        <span>
-          Verkauf
-          <strong>{euro(article.salePrice)}</strong>
-        </span>
-        <span>
-          Pfand
-          <strong>{euro(article.depositAmount)}</strong>
-        </span>
-      </div>
-      <div className="barcode-list">
-        {(article.barcodes ?? []).map((barcode) => (
-          <code key={barcode.value}>{barcode.value}</code>
-        ))}
+    <article className={imageUrl ? "article-summary has-image" : "article-summary"}>
+      {imageUrl ? (
+        <ArticleImage src={imageUrl} alt={`Artikelbild ${article.name}`} className="article-summary-image" />
+      ) : null}
+      <div className="article-summary-body">
+        <div>
+          <p className="eyebrow">{article.category?.name ?? "Ohne Kategorie"}</p>
+          <h2>{article.name}</h2>
+          <p>{article.articleNumber}</p>
+        </div>
+        <div className="summary-grid">
+          <span>
+            Vollgut
+            <strong>{full}</strong>
+          </span>
+          <span>
+            Leergut
+            <strong>{empty}</strong>
+          </span>
+          <span>
+            Verkauf
+            <strong>{euro(article.salePrice)}</strong>
+          </span>
+          <span>
+            Pfand
+            <strong>{euro(article.depositAmount)}</strong>
+          </span>
+        </div>
+        <div className="barcode-list">
+          {(article.barcodes ?? []).map((barcode) => (
+            <code key={barcode.value}>{barcode.value}</code>
+          ))}
+        </div>
       </div>
     </article>
   );

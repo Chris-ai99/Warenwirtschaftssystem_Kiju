@@ -3,6 +3,7 @@
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { ArticleImage } from "./ArticleImage";
 import { normalizeBarcode } from "@/lib/barcode";
 import { apiFetch } from "@/lib/client-api";
 import type { ArticleDto, ArticleUnitDto, CategoryDto } from "@/types/domain";
@@ -341,8 +342,14 @@ export function ArticleForm({ articleId }: ArticleFormProps) {
 
       <label className="field wide">
         <span>Bild-URL optional</span>
-        <input value={form.imageUrl} onChange={(event) => update("imageUrl", event.target.value)} />
+        <input
+          type="url"
+          value={form.imageUrl}
+          onChange={(event) => update("imageUrl", event.target.value)}
+          placeholder="https://..."
+        />
       </label>
+      <ArticleImage src={form.imageUrl} alt="Vorschau Artikelbild" className="article-image-preview wide" />
       <label className="field wide">
         <span>Beschreibung</span>
         <textarea value={form.description} onChange={(event) => update("description", event.target.value)} />

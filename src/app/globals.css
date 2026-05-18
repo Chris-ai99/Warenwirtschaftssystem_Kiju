@@ -352,6 +352,50 @@ textarea:focus {
   gap: 14px;
 }
 
+.article-summary.has-image {
+  grid-template-columns: minmax(132px, 180px) minmax(0, 1fr);
+  align-items: start;
+}
+
+.article-summary-body {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.article-summary-image,
+.article-image-preview {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.article-summary-image {
+  aspect-ratio: 1;
+}
+
+.article-summary-image img,
+.article-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.article-image-preview {
+  min-height: 220px;
+  margin: 0;
+}
+
+.article-image-preview.compact {
+  display: block;
+  min-height: 160px;
+  padding: 0;
+  color: inherit;
+  font-weight: inherit;
+}
+
 .article-summary h2 {
   margin: 0;
   font-size: 1.45rem;
@@ -939,6 +983,7 @@ code {
   .mode-grid,
   .form-grid,
   .summary-grid,
+  .article-summary.has-image,
   .unit-row,
   .scanner-app-card,
   .batch-toolbar {
