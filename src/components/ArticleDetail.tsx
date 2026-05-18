@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArticleSummary } from "./ArticleSummary";
 import { apiFetch } from "@/lib/client-api";
-import { dateTime } from "@/lib/format";
+import { dateTime, euro } from "@/lib/format";
 import type { CurrentUser } from "@/lib/auth";
 import { hasPermission } from "@/lib/permissions";
 import type { ArticleDto, MovementDto, StockDto } from "@/types/domain";
@@ -77,18 +77,27 @@ export function ArticleDetail({ id, user }: Props) {
       </div>
       <h2 className="section-title">Bestand</h2>
       <div className="list">
-        {article.stocks.map((stock: StockDto) => (
-          <div key={stock.id} className="stock-row">
-            <div>
-              <strong>{stock.warehouse.name}</strong>
-              <span>Verfügbar: {stock.fullQuantity - stock.reservedQuantity}</span>
+        {article.stocks.map((stock: StockDto) => {
+          const purchaseValue = Number(article.purchasePrice) * stock.fullQuantity;
+          const saleValue = Number(article.salePrice) * stock.fullQuantity;
+          const depositValue = Number(article.depositAmount) * stock.emptyQuantity;
+
+          return (
+            <div key={stock.id} className="stock-row">
+              <div>
+                <strong>{stock.warehouse.name}</strong>
+                <span>Verfügbar: {stock.fullQuantity - stock.reservedQuantity}</span>
+              </div>
+              <div className="quantity-pills">
+                <span>Voll {stock.fullQuantity}</span>
+                <span>Leer {stock.emptyQuantity}</span>
+                <span>EK-Wert {euro(purchaseValue)}</span>
+                <span>VK-Wert {euro(saleValue)}</span>
+                <span>Pfandwert {euro(depositValue)}</span>
+              </div>
             </div>
-            <div className="quantity-pills">
-              <span>Voll {stock.fullQuantity}</span>
-              <span>Leer {stock.emptyQuantity}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <h2 className="section-title">Letzte Buchungen</h2>
       <div className="list">

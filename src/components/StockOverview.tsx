@@ -15,6 +15,8 @@ type Stock = {
     id: string;
     articleNumber: string;
     name: string;
+    purchasePrice: string;
+    salePrice: string;
     depositAmount: string;
     barcodes: { value: string; primary: boolean }[];
     category?: { name: string } | null;
@@ -67,22 +69,34 @@ export function StockOverview() {
       {error ? <div className="status error">{error}</div> : null}
       <div className="list">
         {filtered.map((stock) => (
-          <Link key={stock.id} className="stock-row" href={`/artikel/${stock.article.id}`}>
-            <div>
-              <strong>{stock.article.name}</strong>
-              <span>
-                {stock.article.articleNumber} · {stock.warehouse.name}
-              </span>
-            </div>
-            <div className="quantity-pills">
-              <span>Voll {stock.fullQuantity}</span>
-              <span>Leer {stock.emptyQuantity}</span>
-              <span>{euro(Number(stock.article.depositAmount) * stock.emptyQuantity)}</span>
-            </div>
-          </Link>
+          <StockRow key={stock.id} stock={stock} />
         ))}
         {filtered.length === 0 ? <div className="empty-state">Noch kein Bestand vorhanden.</div> : null}
       </div>
     </section>
+  );
+}
+
+function StockRow({ stock }: { stock: Stock }) {
+  const purchaseValue = Number(stock.article.purchasePrice) * stock.fullQuantity;
+  const saleValue = Number(stock.article.salePrice) * stock.fullQuantity;
+  const depositValue = Number(stock.article.depositAmount) * stock.emptyQuantity;
+
+  return (
+    <Link className="stock-row" href={`/artikel/${stock.article.id}`}>
+      <div>
+        <strong>{stock.article.name}</strong>
+        <span>
+          {stock.article.articleNumber} · {stock.warehouse.name}
+        </span>
+      </div>
+      <div className="quantity-pills">
+        <span>Voll {stock.fullQuantity}</span>
+        <span>Leer {stock.emptyQuantity}</span>
+        <span>EK-Wert {euro(purchaseValue)}</span>
+        <span>VK-Wert {euro(saleValue)}</span>
+        <span>Pfandwert {euro(depositValue)}</span>
+      </div>
+    </Link>
   );
 }

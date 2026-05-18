@@ -3,6 +3,7 @@
 import { Plus, Save, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { normalizeBarcode } from "@/lib/barcode";
 import { apiFetch } from "@/lib/client-api";
 import type { ArticleDto, ArticleUnitDto, CategoryDto } from "@/types/domain";
 
@@ -59,13 +60,15 @@ export function ArticleForm({ articleId }: ArticleFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialBarcode = searchParams.get("barcode") ?? "";
+  const initialArticleNumber = normalizeBarcode(initialBarcode);
   const [categories, setCategories] = useState<CategoryDto[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(Boolean(articleId));
+  const [articleNumberTouched, setArticleNumberTouched] = useState(Boolean(articleId));
   const [form, setForm] = useState({
     barcode: initialBarcode,
-    articleNumber: "",
+    articleNumber: initialArticleNumber,
     name: "",
     categoryId: "",
     categoryName: "",
@@ -127,6 +130,20 @@ export function ArticleForm({ articleId }: ArticleFormProps) {
 
   function update(name: string, value: string | boolean | number | UnitForm[]) {
     setForm((current) => ({ ...current, [name]: value }));
+  }
+
+  function updateBarcode(value: string) {
+    setForm((current) => ({
+      ...current,
+      barcode: value,
+      articleNumber:
+        !articleId && !articleNumberTouched ? normalizeBarcode(value) : current.articleNumber,
+    }));
+  }
+
+  function updateArticleNumber(value: string) {
+    setArticleNumberTouched(true);
+    update("articleNumber", value);
   }
 
   function updateUnit(index: number, patch: Partial<UnitForm>) {
@@ -223,15 +240,16 @@ export function ArticleForm({ articleId }: ArticleFormProps) {
         <span>Barcode</span>
         <input
           value={form.barcode}
-          onChange={(event) => update("barcode", event.target.value)}
-          placeholder="Barcode scannen oder eingeben"
+          onChange={(event) => updateBarcode(event.target.value)}
+          placeholder="Barcode oder externe Nummer scannen"
         />
       </label>
       <label className="field">
         <span>Artikelnummer intern</span>
         <input
           value={form.articleNumber}
-          onChange={(event) => update("articleNumber", event.target.value)}
+          onChange={(event) => updateArticleNumber(event.target.value)}
+          placeholder="Wird aus Barcode / externer Nummer übernommen"
           required
         />
       </label>
@@ -255,11 +273,11 @@ export function ArticleForm({ articleId }: ArticleFormProps) {
         <input value={form.categoryName} onChange={(event) => update("categoryName", event.target.value)} />
       </label>
       <label className="field">
-        <span>Einkaufspreis</span>
+        <span>Einkaufspreis ohne Pfand</span>
         <input value={form.purchasePrice} onChange={(event) => update("purchasePrice", event.target.value)} />
       </label>
       <label className="field">
-        <span>Verkaufspreis</span>
+        <span>Verkaufspreis ohne Pfand</span>
         <input value={form.salePrice} onChange={(event) => update("salePrice", event.target.value)} />
       </label>
       <label className="field">

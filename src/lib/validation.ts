@@ -34,7 +34,12 @@ const articleUnitInputSchema = z.object({
 
 export const articleCreateSchema = z.object({
   barcode: optionalBarcodeSchema,
-  articleNumber: z.string().trim().min(1).max(80),
+  articleNumber: z
+    .string()
+    .trim()
+    .max(80)
+    .optional()
+    .transform((value) => (value ? value : undefined)),
   name: z.string().trim().min(1).max(180),
   categoryId: z.string().uuid().nullable().optional(),
   categoryName: z.string().trim().max(120).optional(),

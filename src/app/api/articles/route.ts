@@ -7,6 +7,7 @@ import {
   syncPrimaryBarcode,
 } from "@/lib/article-units";
 import { normalizeBarcode } from "@/lib/barcode";
+import { assertCondition } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 import { ok, parseJson, route } from "@/lib/route";
 import { articleCreateSchema } from "@/lib/validation";
@@ -87,6 +88,8 @@ export function POST(request: Request) {
 
     const input = await parseJson(request, articleCreateSchema);
     const barcodeValue = input.barcode ? normalizeBarcode(input.barcode) : undefined;
+    const articleNumber = input.articleNumber || barcodeValue;
+    assertCondition(articleNumber, 400, "ARTICLE_NUMBER_REQUIRED", "Artikelnummer oder Barcode ist erforderlich.");
 
     const article = await prisma.$transaction(async (tx) => {
       await assertBarcodesAvailable(tx, collectArticleBarcodes(barcodeValue, input.units));
@@ -104,7 +107,7 @@ export function POST(request: Request) {
 
       const created = await tx.article.create({
         data: {
-          articleNumber: input.articleNumber,
+          articleNumber,
           name: input.name,
           categoryId,
           purchasePrice: canWritePrices ? input.purchasePrice : "0",

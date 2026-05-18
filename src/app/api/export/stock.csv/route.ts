@@ -21,6 +21,10 @@ export function GET() {
         "Vollgut",
         "Leergut",
         "Verfügbar",
+        "Einkaufspreis",
+        "Verkaufspreis",
+        "EK-Warenwert",
+        "VK-Warenwert",
         "Pfandwert",
       ],
       stocks.map((stock) => [
@@ -33,6 +37,10 @@ export function GET() {
         stock.fullQuantity,
         stock.emptyQuantity,
         stock.fullQuantity - stock.reservedQuantity,
+        stock.article.purchasePrice.toFixed(2),
+        stock.article.salePrice.toFixed(2),
+        stock.article.purchasePrice.mul(stock.fullQuantity).toFixed(2),
+        stock.article.salePrice.mul(stock.fullQuantity).toFixed(2),
         stock.article.depositAmount.mul(stock.emptyQuantity).toFixed(2),
       ]),
     );

@@ -25,6 +25,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { normalizeBarcode } from "@/lib/barcode";
 import { apiFetch } from "@/lib/client-api";
 
 type SectionKey =
@@ -136,15 +137,15 @@ const resourceConfigs: Partial<Record<SectionKey, ResourceConfig>> = {
     dataKey: "articles",
     search: true,
     fields: [
-      { key: "articleNumber", label: "Artikelnummer" },
+      { key: "articleNumber", label: "Artikelnummer intern" },
       { key: "name", label: "Name" },
       { key: "categoryId", label: "Kategorie", type: "select", ref: "categories" },
-      { key: "purchasePrice", label: "Einkaufspreis" },
-      { key: "salePrice", label: "Verkaufspreis" },
+      { key: "purchasePrice", label: "Einkaufspreis ohne Pfand" },
+      { key: "salePrice", label: "Verkaufspreis ohne Pfand" },
       { key: "depositAmount", label: "Pfandbetrag" },
       { key: "unit", label: "Einheit" },
       { key: "lowStockThreshold", label: "Mindestbestand", type: "number" },
-      { key: "barcodes", label: "Barcodes, kommagetrennt", type: "textarea" },
+      { key: "barcodes", label: "Barcodes / externe Nummern, kommagetrennt", type: "textarea" },
       { key: "imageUrl", label: "Artikelbild-URL" },
       { key: "description", label: "Beschreibung", type: "textarea" },
       { key: "supportsEmpties", label: "Leergut aktiv", type: "checkbox" },
@@ -338,6 +339,16 @@ function normalizeForSubmit(form: Record<string, unknown>) {
   return next;
 }
 
+function firstBarcode(value: unknown) {
+  const values =
+    typeof value === "string"
+      ? value.split(/[,\n;]/)
+      : Array.isArray(value)
+        ? value.map(String)
+        : [];
+  return values.map(normalizeBarcode).find(Boolean) ?? "";
+}
+
 export function AdminSystem({ section }: { section: SectionKey }) {
   if (section === "dashboard") return <AdminDashboard />;
   if (section === "rollen-rechte") return <RolesPanel />;
@@ -396,6 +407,7 @@ function ResourcePanel({ config }: { config: ResourceConfig }) {
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
   const [form, setForm] = useState<Record<string, unknown>>(config.empty);
   const [selectedId, setSelectedId] = useState("");
+  const [articleNumberTouched, setArticleNumberTouched] = useState(false);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -421,9 +433,23 @@ function ResourcePanel({ config }: { config: ResourceConfig }) {
       }
     }
     setSelectedId(String(item.id ?? ""));
+    setArticleNumberTouched(true);
     setForm(next);
     setMessage("");
     setError("");
+  }
+
+  function updateField(key: string, value: unknown) {
+    if (config.resource === "articles" && key === "articleNumber") {
+      setArticleNumberTouched(true);
+    }
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (config.resource === "articles" && !selectedId && key === "barcodes" && !articleNumberTouched) {
+        next.articleNumber = firstBarcode(value);
+      }
+      return next;
+    });
   }
 
   async function submit(event: React.FormEvent) {
@@ -438,6 +464,7 @@ function ResourcePanel({ config }: { config: ResourceConfig }) {
       });
       setMessage("Gespeichert.");
       setSelectedId("");
+      setArticleNumberTouched(false);
       setForm(config.empty);
       await load();
     } catch (err) {
@@ -453,6 +480,7 @@ function ResourcePanel({ config }: { config: ResourceConfig }) {
       await apiFetch(`/api/admin/${config.resource}/${selectedId}`, { method: "DELETE" });
       setMessage("Gelöscht oder deaktiviert.");
       setSelectedId("");
+      setArticleNumberTouched(false);
       setForm(config.empty);
       await load();
     } catch (err) {
@@ -468,7 +496,7 @@ function ResourcePanel({ config }: { config: ResourceConfig }) {
             <p className="eyebrow">{config.eyebrow}</p>
             <h1>{config.title}</h1>
           </div>
-          <button className="secondary-action" onClick={() => { setSelectedId(""); setForm(config.empty); }}>
+          <button className="secondary-action" onClick={() => { setSelectedId(""); setArticleNumberTouched(false); setForm(config.empty); }}>
             <Plus size={18} aria-hidden />
             Neu
           </button>
@@ -501,7 +529,7 @@ function ResourcePanel({ config }: { config: ResourceConfig }) {
               field={field}
               value={form[field.key]}
               refs={refs}
-              onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
+              onChange={(value) => updateField(field.key, value)}
             />
           ))}
         </div>

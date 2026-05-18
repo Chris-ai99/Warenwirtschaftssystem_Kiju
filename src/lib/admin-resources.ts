@@ -81,6 +81,11 @@ function decimalString(value: unknown, fallback = "0") {
   return /^\d+(\.\d{1,2})?$/.test(next) ? next : fallback;
 }
 
+function barcodeValues(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map(String).map(normalizeBarcode).filter(Boolean);
+}
+
 function codeFrom(value: string) {
   return value
     .normalize("NFD")
@@ -313,12 +318,13 @@ export async function createAdminResource(resourceName: string, body: JsonMap, u
     let result: unknown;
 
     if (resource === "articles") {
-      assertCondition(text(body.articleNumber), 400, "ARTICLE_NUMBER_REQUIRED", "Artikelnummer ist erforderlich.");
+      const barcodes = barcodeValues(body.barcodes);
+      const articleNumber = text(body.articleNumber) || barcodes[0];
+      assertCondition(articleNumber, 400, "ARTICLE_NUMBER_REQUIRED", "Artikelnummer oder Barcode ist erforderlich.");
       assertCondition(text(body.name), 400, "ARTICLE_NAME_REQUIRED", "Artikelname ist erforderlich.");
-      const barcodes = Array.isArray(body.barcodes) ? body.barcodes.map(String).filter(Boolean) : [];
       result = await tx.article.create({
         data: {
-          articleNumber: text(body.articleNumber),
+          articleNumber,
           name: text(body.name),
           categoryId: nullableString(body.categoryId),
           purchasePrice: decimalString(body.purchasePrice),
@@ -331,7 +337,7 @@ export async function createAdminResource(resourceName: string, body: JsonMap, u
           supportsEmpties: bool(body.supportsEmpties),
           lowStockThreshold: numberValue(body.lowStockThreshold),
           barcodes: barcodes.length
-            ? { create: barcodes.map((value, index) => ({ value: normalizeBarcode(value), primary: index === 0 })) }
+            ? { create: barcodes.map((value, index) => ({ value, primary: index === 0 })) }
             : undefined,
         },
         include: { category: true, barcodes: true, units: true, stocks: true },
@@ -516,10 +522,16 @@ export async function updateAdminResource(resourceName: string, id: string, body
     let result: unknown;
 
     if (resource === "articles") {
+      const barcodes = barcodeValues(body.barcodes);
+      const articleNumber =
+        body.articleNumber === undefined ? undefined : text(body.articleNumber) || barcodes[0];
+      if (body.articleNumber !== undefined) {
+        assertCondition(articleNumber, 400, "ARTICLE_NUMBER_REQUIRED", "Artikelnummer oder Barcode ist erforderlich.");
+      }
       result = await tx.article.update({
         where: { id },
         data: {
-          articleNumber: body.articleNumber === undefined ? undefined : text(body.articleNumber),
+          articleNumber,
           name: body.name === undefined ? undefined : text(body.name),
           categoryId: body.categoryId === undefined ? undefined : nullableString(body.categoryId),
           purchasePrice: body.purchasePrice === undefined ? undefined : decimalString(body.purchasePrice),
@@ -536,8 +548,8 @@ export async function updateAdminResource(resourceName: string, id: string, body
       });
       if (Array.isArray(body.barcodes)) {
         await tx.barcode.deleteMany({ where: { articleId: id } });
-        for (const [index, value] of body.barcodes.map(String).filter(Boolean).entries()) {
-          await tx.barcode.create({ data: { articleId: id, value: normalizeBarcode(value), primary: index === 0 } });
+        for (const [index, value] of barcodes.entries()) {
+          await tx.barcode.create({ data: { articleId: id, value, primary: index === 0 } });
         }
       }
     }
