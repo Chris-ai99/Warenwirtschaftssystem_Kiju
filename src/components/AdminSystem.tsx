@@ -73,6 +73,19 @@ type ReferenceData = {
   permissions: { id: string; key: string; name: string; group: string }[];
 };
 
+type ScannerAppInfo = {
+  name: string;
+  packageName: string;
+  version: string;
+  versionCode: number;
+  webVersion: string;
+  sizeBytes: number;
+  sha256: string;
+  updatedAt: string;
+  downloadUrl: string;
+  targetUrl: string;
+};
+
 const sections = [
   { key: "artikel", href: "/admin/artikel", title: "Artikelverwaltung", detail: "Produkte, Barcodes, Preise, Pfand und Status", icon: Package },
   { key: "lager", href: "/admin/lager", title: "Lagerverwaltung", detail: "Lager, Typen, Sichtbarkeit und Reihenfolge", icon: Warehouse },
@@ -687,6 +700,7 @@ function RolesPanel() {
 
 function SettingsPanel({ kind }: { kind: "scanner" | "deposit" | "settings" }) {
   const [form, setForm] = useState<Record<string, unknown>>({});
+  const [scannerApp, setScannerApp] = useState<ScannerAppInfo | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -697,6 +711,13 @@ function SettingsPanel({ kind }: { kind: "scanner" | "deposit" | "settings" }) {
     apiFetch<Record<string, unknown>>(`/api/admin/${kind}`)
       .then((data) => setForm((data.setting as Record<string, unknown>) ?? (data.settings as Record<string, unknown>)?.system ?? {}))
       .catch((err) => setError(err instanceof Error ? err.message : "Einstellungen konnten nicht geladen werden."));
+  }, [kind]);
+
+  useEffect(() => {
+    if (kind !== "scanner") return;
+    apiFetch<ScannerAppInfo>("/api/scanner-app")
+      .then(setScannerApp)
+      .catch(() => setScannerApp(null));
   }, [kind]);
 
   const fields = kind === "scanner"
@@ -745,8 +766,29 @@ function SettingsPanel({ kind }: { kind: "scanner" | "deposit" | "settings" }) {
         })}
       </div>
       {kind === "scanner" ? (
+        <div className="scanner-app-card wide">
+          <div>
+            <p className="eyebrow">Scanner-App</p>
+            <h2>Android-App herunterladen</h2>
+            <p>
+              Die APK öffnet die Warenwirtschaft unter {scannerApp?.targetUrl ?? "der aktuellen Subdomain"} und lädt
+              die Web-Oberfläche bei jedem Deploy automatisch neu.
+            </p>
+            {scannerApp ? (
+              <p className="scanner-app-meta">
+                Version {scannerApp.version} · Web {scannerApp.webVersion} · {Math.ceil(scannerApp.sizeBytes / 1024)} KB
+              </p>
+            ) : null}
+          </div>
+          <a className="secondary-action" href={scannerApp?.downloadUrl ?? "/api/scanner-app/download"}>
+            <Download size={18} aria-hidden />
+            APK herunterladen
+          </a>
+        </div>
+      ) : null}
+      {kind === "scanner" ? (
         <div className="status info wide">
-          MUNBYN IPDA082P: HID/Keyboard Wedge aktivieren, Suffix auf Enter setzen und diese App über die WLAN-Adresse öffnen.
+          MUNBYN IPDA082P: HID/Keyboard Wedge aktivieren, Suffix auf Enter setzen und die installierte KiJu-App starten.
         </div>
       ) : null}
       {message ? <div className="status success wide">{message}</div> : null}

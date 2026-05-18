@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">KiJu Lager</string>
+
+    <!-- Die WebView lädt immer die zentrale Warenwirtschaft; Web-Updates kommen dadurch mit jedem Deploy an. -->
+    <string name="kiju_server_url">https://warenwirtschaft.kiju-bi.de/</string>
+</resources>

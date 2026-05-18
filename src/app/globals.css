@@ -460,6 +460,41 @@ code {
   color: var(--info);
 }
 
+.scanner-app-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.scanner-app-card h2,
+.scanner-app-card p {
+  margin: 0;
+}
+
+.scanner-app-card h2 {
+  font-size: 1.15rem;
+}
+
+.scanner-app-card p {
+  margin-top: 8px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.scanner-app-card .secondary-action {
+  white-space: nowrap;
+}
+
+.scanner-app-meta {
+  font-size: 0.9rem;
+}
+
 .list {
   display: grid;
   gap: 10px;
@@ -905,6 +940,7 @@ code {
   .form-grid,
   .summary-grid,
   .unit-row,
+  .scanner-app-card,
   .batch-toolbar {
     grid-template-columns: 1fr;
   }
